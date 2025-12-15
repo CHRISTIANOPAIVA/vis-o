@@ -1,10 +1,16 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Use a custom build dir to avoid permission issues with the default .next folder
-  distDir: ".next-output",
+    experimental: {
+        serverActions: {
+            bodySizeLimit: '10mb',
+        },
+    },
+    // Se você estiver usando API Routes (Pages Router) em vez de Server Actions:
+    api: {
+        bodyParser: {
+            sizeLimit: '10mb',
+        },
+    },
 };
 
-//module.exports = nextConfig;
-module.exports = {
-  output: 'export',
-};
+export default nextConfig;
