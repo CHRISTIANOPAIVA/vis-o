@@ -215,12 +215,11 @@ export function CameraInput({ onImageSelect, isLoading }: CameraInputProps) {
 
   return (
     <div className="w-full group">
-      <input
+     <input
         id="camera-input"
         ref={inputRef}
         type="file"
-        accept="image/*;capture=camera"
-        capture="environment"
+        accept="image/*"  // Removi o ";capture=camera" e o atributo capture
         className="sr-only"
         onChange={handleFileChange}
       />
