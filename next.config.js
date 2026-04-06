@@ -1,14 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+    serverExternalPackages: ['better-sqlite3', 'sharp'],
     experimental: {
         serverActions: {
             bodySizeLimit: '10mb',
-        },
-    },
-    // Se você estiver usando API Routes (Pages Router) em vez de Server Actions:
-    api: {
-        bodyParser: {
-            sizeLimit: '10mb',
         },
     },
 };

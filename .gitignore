@@ -27,3 +27,6 @@ pnpm-debug.log*
 .idea/
 .vscode/
 *.tsbuildinfo
+
+# local database
+data/

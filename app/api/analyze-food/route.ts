@@ -1,12 +1,29 @@
-﻿import { openai } from "@ai-sdk/openai";
+import { openai } from "@ai-sdk/openai";
 import { generateObject } from "ai";
 import { z } from "zod";
+import sharp from "sharp";
+import db from "@/lib/db";
 
-export const maxDuration = 60; // hard timeout for image processing
+export const maxDuration = 60;
 
 const BodySchema = z.object({
-  image: z.string().min(1, "Imagem obrigatoria")
+  images: z.array(z.string().min(1)).min(1).max(5),
 });
+
+async function resizeToThumbnail(base64: string): Promise<string> {
+  const base64Data = base64.replace(/^data:image\/\w+;base64,/, "");
+  const buffer = Buffer.from(base64Data, "base64");
+  const resized = await sharp(buffer)
+    .resize(200, 200, { fit: "inside", withoutEnlargement: true })
+    .jpeg({ quality: 70 })
+    .toBuffer();
+  return "data:image/jpeg;base64," + resized.toString("base64");
+}
+
+const insertMeal = db.prepare(`
+  INSERT INTO meals (food_name, calories, protein, carbs, fat, fiber, confidence, explanation, image_base64)
+  VALUES (@food_name, @calories, @protein, @carbs, @fat, @fiber, @confidence, @explanation, @image_base64)
+`);
 
 export async function POST(req: Request) {
   try {
@@ -16,17 +33,18 @@ export async function POST(req: Request) {
       return new Response("Imagem nao fornecida", { status: 400 });
     }
 
-    const { image } = parsed.data;
+    const { images } = parsed.data;
 
     const result = await generateObject({
-      model: openai("gpt-4o"), // vision-capable model
+      model: openai("gpt-4o"),
       schema: z.object({
         food_name: z.string().describe("Nome curto do prato principal"),
         calories: z.number().describe("Estimativa total de calorias (apenas numeros)"),
         macros: z.object({
           protein: z.number().describe("Proteina em gramas"),
           carbs: z.number().describe("Carboidratos em gramas"),
-          fat: z.number().describe("Gorduras em gramas")
+          fat: z.number().describe("Gorduras em gramas"),
+          fiber: z.number().describe("Fibras alimentares em gramas")
         }),
         confidence: z.enum(["high", "medium", "low"]),
         explanation: z.string().describe("Frase curta de analise nutricional (max 20 palavras)")
@@ -35,19 +53,35 @@ export async function POST(req: Request) {
         {
           role: "system",
           content:
-            "Voce e um nutricionista experiente. Analise a imagem da comida fornecida com precisao. Se a imagem nao for de comida, retorne valores zerados e explique no campo explanation."
+            "Voce e um nutricionista experiente. Analise as imagens da comida fornecidas com precisao. Se houver multiplas imagens, some os macros de todos os alimentos como se fossem uma unica refeicao. Estime calorias, proteinas, carboidratos, gorduras e fibras alimentares. Se as imagens nao forem de comida, retorne valores zerados e explique no campo explanation."
         },
         {
           role: "user",
           content: [
-            { type: "text", text: "Analise esta refeicao e estime os macros." },
-            { type: "image", image } // base64 image
+            { type: "text", text: `Analise esta refeicao (${images.length} foto${images.length > 1 ? "s" : ""}) e estime os macros totais combinados.` },
+            ...images.map((img) => ({ type: "image" as const, image: img }))
           ]
         }
       ]
     });
 
-    return Response.json(result.object);
+    const analysis = result.object;
+
+    // Save to DB (thumbnail da primeira imagem)
+    const thumbnail = await resizeToThumbnail(images[0]);
+    insertMeal.run({
+      food_name: analysis.food_name,
+      calories: analysis.calories,
+      protein: analysis.macros.protein,
+      carbs: analysis.macros.carbs,
+      fat: analysis.macros.fat,
+      fiber: analysis.macros.fiber,
+      confidence: analysis.confidence,
+      explanation: analysis.explanation,
+      image_base64: thumbnail
+    });
+
+    return Response.json(analysis);
   } catch (error) {
     console.error("Erro na analise:", error);
     return new Response("Erro ao processar imagem", { status: 500 });
