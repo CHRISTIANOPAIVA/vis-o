@@ -1,4 +1,4 @@
-import { openai } from "@ai-sdk/openai";
+import { google } from "@ai-sdk/google";
 import { generateObject } from "ai";
 import { z } from "zod";
 import sharp from "sharp";
@@ -36,7 +36,7 @@ export async function POST(req: Request) {
     const { images } = parsed.data;
 
     const result = await generateObject({
-      model: openai("gpt-4o"),
+      model: google(process.env.GOOGLE_MODEL ?? "gemini-2.0-flash"),
       schema: z.object({
         food_name: z.string().describe("Nome curto do prato principal"),
         calories: z.number().describe("Estimativa total de calorias (apenas numeros)"),
