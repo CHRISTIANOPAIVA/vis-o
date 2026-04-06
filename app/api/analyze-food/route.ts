@@ -1,10 +1,11 @@
-import { anthropic } from "@ai-sdk/anthropic";
-import { generateObject } from "ai";
+import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import sharp from "sharp";
 import db from "@/lib/db";
 
 export const maxDuration = 60;
+
+const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const BodySchema = z.object({
   images: z.array(z.string().min(1)).min(1).max(5),
@@ -20,47 +21,66 @@ async function resizeToThumbnail(base64: string): Promise<string> {
   return "data:image/jpeg;base64," + resized.toString("base64");
 }
 
+function extractBase64(dataUrl: string): { data: string; mediaType: "image/jpeg" | "image/png" | "image/gif" | "image/webp" } {
+  const match = dataUrl.match(/^data:(image\/\w+);base64,(.+)$/);
+  if (!match) throw new Error("Invalid image format");
+  const mediaType = match[1] as "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+  return { data: match[2], mediaType };
+}
+
 export async function POST(req: Request) {
   try {
     const parsed = BodySchema.safeParse(await req.json());
-
     if (!parsed.success) {
       return new Response("Imagem nao fornecida", { status: 400 });
     }
 
     const { images } = parsed.data;
+    const model = process.env.ANTHROPIC_MODEL ?? "claude-3-haiku-20240307";
 
-    const result = await generateObject({
-      model: anthropic(process.env.ANTHROPIC_MODEL ?? "claude-3-haiku-20240307"),
-      schema: z.object({
-        food_name: z.string().describe("Nome curto do prato principal"),
-        calories: z.number().describe("Estimativa total de calorias (apenas numeros)"),
-        macros: z.object({
-          protein: z.number().describe("Proteina em gramas"),
-          carbs: z.number().describe("Carboidratos em gramas"),
-          fat: z.number().describe("Gorduras em gramas"),
-          fiber: z.number().describe("Fibras alimentares em gramas")
-        }),
-        confidence: z.enum(["high", "medium", "low"]),
-        explanation: z.string().describe("Frase curta de analise nutricional (max 20 palavras)")
-      }),
+    const imageContent = images.map((img) => {
+      const { data, mediaType } = extractBase64(img);
+      return {
+        type: "image" as const,
+        source: { type: "base64" as const, media_type: mediaType, data },
+      };
+    });
+
+    const response = await client.messages.create({
+      model,
+      max_tokens: 1024,
+      system: "Voce e um nutricionista experiente. Analise as imagens da comida fornecidas com precisao. Responda APENAS com um JSON valido seguindo exatamente o schema fornecido, sem texto adicional.",
       messages: [
-        {
-          role: "system",
-          content:
-            "Voce e um nutricionista experiente. Analise as imagens da comida fornecidas com precisao. Se houver multiplas imagens, some os macros de todos os alimentos como se fossem uma unica refeicao. Estime calorias, proteinas, carboidratos, gorduras e fibras alimentares. Se as imagens nao forem de comida, retorne valores zerados e explique no campo explanation."
-        },
         {
           role: "user",
           content: [
-            { type: "text", text: `Analise esta refeicao (${images.length} foto${images.length > 1 ? "s" : ""}) e estime os macros totais combinados.` },
-            ...images.map((img) => ({ type: "image" as const, image: img }))
+            ...imageContent,
+            {
+              type: "text",
+              text: `Analise esta refeicao (${images.length} foto${images.length > 1 ? "s" : ""}) e retorne um JSON com este formato exato:
+{
+  "food_name": "nome curto do prato",
+  "calories": numero_total,
+  "macros": {
+    "protein": gramas,
+    "carbs": gramas,
+    "fat": gramas,
+    "fiber": gramas
+  },
+  "confidence": "high" ou "medium" ou "low",
+  "explanation": "frase curta max 20 palavras"
+}`
+            }
           ]
         }
       ]
     });
 
-    const analysis = result.object;
+    const text = response.content[0].type === "text" ? response.content[0].text : "";
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error("No JSON in response: " + text);
+
+    const analysis = JSON.parse(jsonMatch[0]);
 
     const thumbnail = await resizeToThumbnail(images[0]);
     await db.from("meals").insert({
@@ -77,7 +97,7 @@ export async function POST(req: Request) {
 
     return Response.json(analysis);
   } catch (error) {
-    const msg = error instanceof Error ? error.message + "\n" + error.stack : String(error);
+    const msg = error instanceof Error ? error.message : String(error);
     console.error("Erro na analise:", msg);
     return new Response(msg, { status: 500 });
   }
