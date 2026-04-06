@@ -77,7 +77,8 @@ export async function POST(req: Request) {
 
     return Response.json(analysis);
   } catch (error) {
-    console.error("Erro na analise:", error);
-    return new Response("Erro ao processar imagem", { status: 500 });
+    const msg = error instanceof Error ? error.message + "\n" + error.stack : String(error);
+    console.error("Erro na analise:", msg);
+    return new Response(msg, { status: 500 });
   }
 }
