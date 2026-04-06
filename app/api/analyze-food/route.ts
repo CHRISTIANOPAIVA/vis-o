@@ -20,11 +20,6 @@ async function resizeToThumbnail(base64: string): Promise<string> {
   return "data:image/jpeg;base64," + resized.toString("base64");
 }
 
-const insertMeal = db.prepare(`
-  INSERT INTO meals (food_name, calories, protein, carbs, fat, fiber, confidence, explanation, image_base64)
-  VALUES (@food_name, @calories, @protein, @carbs, @fat, @fiber, @confidence, @explanation, @image_base64)
-`);
-
 export async function POST(req: Request) {
   try {
     const parsed = BodySchema.safeParse(await req.json());
@@ -67,9 +62,8 @@ export async function POST(req: Request) {
 
     const analysis = result.object;
 
-    // Save to DB (thumbnail da primeira imagem)
     const thumbnail = await resizeToThumbnail(images[0]);
-    insertMeal.run({
+    await db.from("meals").insert({
       food_name: analysis.food_name,
       calories: analysis.calories,
       protein: analysis.macros.protein,

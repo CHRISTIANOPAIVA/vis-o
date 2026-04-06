@@ -2,6 +2,7 @@
   "dependencies": {
     "@ai-sdk/google": "^3.0.59",
     "@ai-sdk/openai": "^2.0.86",
+    "@supabase/supabase-js": "^2.101.1",
     "@types/better-sqlite3": "^7.6.13",
     "@types/sharp": "^0.31.1",
     "ai": "^6.0.147",

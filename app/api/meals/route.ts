@@ -1,20 +1,6 @@
 import { z } from "zod";
 import db from "@/lib/db";
 
-const listMeals = db.prepare(
-  "SELECT * FROM meals ORDER BY created_at DESC"
-);
-
-const deleteMeal = db.prepare(
-  "DELETE FROM meals WHERE id = ?"
-);
-
-const updateMeal = db.prepare(
-  `UPDATE meals
-   SET food_name = ?, calories = ?, protein = ?, carbs = ?, fat = ?, fiber = ?, is_edited = 1
-   WHERE id = ?`
-);
-
 const PatchSchema = z.object({
   id:        z.number().int().positive(),
   food_name: z.string().min(1),
@@ -26,8 +12,13 @@ const PatchSchema = z.object({
 });
 
 export async function GET() {
-  const meals = listMeals.all();
-  return Response.json(meals);
+  const { data, error } = await db
+    .from("meals")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) return new Response(error.message, { status: 500 });
+  return Response.json(data);
 }
 
 export async function DELETE(req: Request) {
@@ -35,7 +26,9 @@ export async function DELETE(req: Request) {
   if (!id || typeof id !== "number") {
     return new Response("ID invalido", { status: 400 });
   }
-  deleteMeal.run(id);
+
+  const { error } = await db.from("meals").delete().eq("id", id);
+  if (error) return new Response(error.message, { status: 500 });
   return Response.json({ ok: true });
 }
 
@@ -53,6 +46,11 @@ export async function PATCH(req: Request) {
   }
 
   const { id, food_name, calories, protein, carbs, fat, fiber } = parsed.data;
-  updateMeal.run(food_name, calories, protein, carbs, fat, fiber, id);
+  const { error } = await db
+    .from("meals")
+    .update({ food_name, calories, protein, carbs, fat, fiber, is_edited: true })
+    .eq("id", id);
+
+  if (error) return new Response(error.message, { status: 500 });
   return Response.json({ ok: true });
 }

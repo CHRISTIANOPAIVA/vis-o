@@ -20,8 +20,13 @@ const ProfileSchema = z.object({
 });
 
 export async function GET() {
-  const row = db.prepare("SELECT * FROM user_profile WHERE id = 1").get() as UserProfile | undefined;
-  const profile = row ?? DEFAULT_PROFILE;
+  const { data } = await db
+    .from("user_profile")
+    .select("*")
+    .eq("id", 1)
+    .single();
+
+  const profile = (data as UserProfile | null) ?? DEFAULT_PROFILE;
   return Response.json(computeTargets(profile));
 }
 
@@ -39,10 +44,10 @@ export async function PUT(req: Request) {
   }
 
   const { weight_kg, height_cm, age, sex, goal } = parsed.data;
-  db.prepare(
-    `INSERT OR REPLACE INTO user_profile (id, weight_kg, height_cm, age, sex, goal)
-     VALUES (1, ?, ?, ?, ?, ?)`
-  ).run(weight_kg, height_cm, age, sex, goal);
+  const { error } = await db
+    .from("user_profile")
+    .upsert({ id: 1, weight_kg, height_cm, age, sex, goal, updated_at: new Date().toISOString() });
 
+  if (error) return new Response(error.message, { status: 500 });
   return Response.json(computeTargets(parsed.data));
 }
