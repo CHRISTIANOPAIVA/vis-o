@@ -31,7 +31,7 @@ export async function POST(req: Request) {
     const { images } = parsed.data;
 
     const result = await generateObject({
-      model: anthropic(process.env.ANTHROPIC_MODEL ?? "claude-haiku-4-5-20251001"),
+      model: anthropic(process.env.ANTHROPIC_MODEL ?? "claude-3-haiku-20240307"),
       schema: z.object({
         food_name: z.string().describe("Nome curto do prato principal"),
         calories: z.number().describe("Estimativa total de calorias (apenas numeros)"),
