@@ -1,4 +1,4 @@
-import { google } from "@ai-sdk/google";
+import { anthropic } from "@ai-sdk/anthropic";
 import { generateObject } from "ai";
 import { z } from "zod";
 import sharp from "sharp";
@@ -31,7 +31,7 @@ export async function POST(req: Request) {
     const { images } = parsed.data;
 
     const result = await generateObject({
-      model: google(process.env.GOOGLE_MODEL ?? "gemini-2.0-flash"),
+      model: anthropic(process.env.ANTHROPIC_MODEL ?? "claude-haiku-4-5-20251001"),
       schema: z.object({
         food_name: z.string().describe("Nome curto do prato principal"),
         calories: z.number().describe("Estimativa total de calorias (apenas numeros)"),
