@@ -216,3 +216,44 @@ Modificados: `app/api/analyze-food/route.ts`.
 ### Fora de escopo desta rodada
 
 Auth multi-usuário real (Supabase Auth + `user_id` + RLS) — impossível aplicar ou verificar, o projeto Supabase do `.env` não existe mais (NXDOMAIN). Itens #6 (deploy contraditório Vercel/Netlify), #7 (schema), #8 (validação da resposta do modelo), #12 (modelo), #13–#19 (higiene). Token CSRF dedicado (o `SameSite=Lax` cobre o caso de uso atual).
+
+---
+
+# Rodada 3 — Upload de fotos e validação da resposta da IA (itens 3 e 4)
+
+### [x] R1 — redimensionar fotos no navegador (item 3)
+Arquivos: `lib/image.ts` (novo), `app/page.tsx`
+- Foto de celular vai crua (3–8 MB, +33% em base64). Estoura o limite de corpo da
+  Vercel (~4,5 MB) e o teto de 5 MB por imagem da Anthropic, que reduz para ~1568 px
+  de qualquer jeito.
+- Redimensionar via canvas para lado maior ≤ 1568 px, JPEG 0,85, fundo branco
+  (PNG transparente não vira preto). Se o navegador não decodificar (ex.: HEIC no
+  Chrome), cair para o arquivo original.
+Critérios: foto 4000×3000 sai com lado maior 1568 px e < 1 MB; foto pequena não é
+ampliada; `npx tsc --noEmit` exit 0.
+
+### [x] R2 — validar a resposta da IA (item 4)
+Arquivo: `app/api/analyze-food/route.ts`
+- Trocar regex + `JSON.parse` por structured outputs (`messages.parse` +
+  `zodOutputFormat`). Não usar `tool_choice` forçado: retorna 400 em Opus 5.5 /
+  Sonnet 5.5, e o modelo é configurável por `ANTHROPIC_MODEL`.
+- `parsed_output` nulo (recusa, `max_tokens`) ou valores negativos/não finitos →
+  502 com mensagem genérica, sem gravar no banco.
+Critérios: resposta malformada não gera 500 nem grava lixo; resposta válida segue
+igual para o cliente (mesmo shape de `NutritionAnalysis`); `npx tsc --noEmit` exit 0.
+
+## Revisão — Rodada 3
+- `npx tsc --noEmit`: exit 0.
+- R1 (Chrome headless via DevTools, `prepareImageForUpload` real):
+  - JPEG 4000×3000 (243 KB) → 1568×1176, 62 KB.
+  - Retrato 3000×4000 → 1176×1568.
+  - 800×600 → 800×600 (não ampliou).
+  - PNG transparente → JPEG com canto branco (255,255,255).
+  - Arquivo indecodificável `image/heic` → fallback para o data URL original.
+- R2 (dev server + `ANTHROPIC_MODEL=claude-sonnet-5-5`): POST com JPEG
+  sintético → 200 com shape de `NutritionAnalysis` válido.
+- Pendente / fora do escopo:
+  - HEIC que o navegador não decodifica cai no fallback, e o servidor ainda
+    responde 500 (`extractBase64` não valida o media type). Fica para o item 6.
+  - Insert no Supabase falhou no teste local (projeto não existe mais, NXDOMAIN).
+    Só loga, então a análise ainda volta para o cliente (item 5).

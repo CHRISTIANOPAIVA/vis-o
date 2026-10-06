@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 import sharp from "sharp";
 import db from "@/lib/db";
@@ -25,6 +26,29 @@ const MAX_TOTAL_DATA_URL_CHARS = 20 * 1024 * 1024;
 const BodySchema = z.object({
   images: z.array(z.string().min(1)).min(1).max(5),
 });
+
+// Formato que a IA deve devolver, imposto via structured outputs. Ficam so
+// tipos simples: restricoes numericas (minimo etc.) nao sao garantidas pelo
+// schema da API, entao a sanidade dos valores e checada depois, no codigo.
+const AnalysisSchema = z.object({
+  food_name: z.string().describe("Nome curto do prato"),
+  calories: z.number().describe("Calorias totais da refeicao (kcal)"),
+  macros: z.object({
+    protein: z.number().describe("Proteinas em gramas"),
+    carbs: z.number().describe("Carboidratos em gramas"),
+    fat: z.number().describe("Gorduras em gramas"),
+    fiber: z.number().describe("Fibras em gramas"),
+  }),
+  confidence: z.enum(["high", "medium", "low"]),
+  explanation: z.string().describe("Frase curta, no maximo 20 palavras"),
+});
+
+type Analysis = z.infer<typeof AnalysisSchema>;
+
+function hasSaneValues(a: Analysis): boolean {
+  const values = [a.calories, a.macros.protein, a.macros.carbs, a.macros.fat, a.macros.fiber];
+  return a.food_name.trim().length > 0 && values.every((v) => Number.isFinite(v) && v >= 0);
+}
 
 async function resizeToThumbnail(base64: string): Promise<string> {
   const base64Data = base64.replace(/^data:image\/\w+;base64,/, "");
@@ -95,10 +119,14 @@ export async function POST(req: Request) {
       };
     });
 
-    const response = await client.messages.create({
+    // Structured outputs em vez de pedir JSON no prompt e extrair com regex.
+    // Nao usar tool_choice forcado: ele retorna 400 em modelos mais novos
+    // (Opus 5.5, Sonnet 5.5), e o modelo e trocavel via ANTHROPIC_MODEL.
+    const response = await client.messages.parse({
       model,
       max_tokens: 1024,
-      system: "Voce e um nutricionista experiente. Analise as imagens da comida fornecidas com precisao. Responda APENAS com um JSON valido seguindo exatamente o schema fornecido, sem texto adicional.",
+      system: "Voce e um nutricionista experiente. Analise as imagens da comida fornecidas com precisao.",
+      output_config: { format: zodOutputFormat(AnalysisSchema) },
       messages: [
         {
           role: "user",
@@ -106,30 +134,19 @@ export async function POST(req: Request) {
             ...imageContent,
             {
               type: "text",
-              text: `Analise esta refeicao (${images.length} foto${images.length > 1 ? "s" : ""}) e retorne um JSON com este formato exato:
-{
-  "food_name": "nome curto do prato",
-  "calories": numero_total,
-  "macros": {
-    "protein": gramas,
-    "carbs": gramas,
-    "fat": gramas,
-    "fiber": gramas
-  },
-  "confidence": "high" ou "medium" ou "low",
-  "explanation": "frase curta max 20 palavras"
-}`
-            }
-          ]
-        }
-      ]
+              text: `Analise esta refeicao (${images.length} foto${images.length > 1 ? "s" : ""}) e estime calorias e macronutrientes da porcao mostrada.`,
+            },
+          ],
+        },
+      ],
     });
 
-    const text = response.content[0].type === "text" ? response.content[0].text : "";
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error("No JSON in response: " + text);
-
-    const analysis = JSON.parse(jsonMatch[0]);
+    // parsed_output e null em recusa ou resposta cortada por max_tokens.
+    const analysis = response.parsed_output;
+    if (!analysis || !hasSaneValues(analysis)) {
+      console.error("Resposta da IA invalida:", response.stop_reason, JSON.stringify(response.content));
+      return new Response("A IA nao retornou uma analise valida. Tente outra foto.", { status: 502 });
+    }
 
     const thumbnail = await resizeToThumbnail(images[0]);
     const { error: insertError } = await db.from("meals").insert({

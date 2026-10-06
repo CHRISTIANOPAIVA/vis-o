@@ -9,20 +9,12 @@ import { MealHistory } from "./components/features/meal-history";
 import { ProfileForm } from "./components/features/profile-form";
 import type { NutritionAnalysis, UserProfileWithTargets } from "@/types";
 import { cn } from "@/lib/utils";
+import { prepareImageForUpload } from "@/lib/image";
 
 const NutritionCharts = dynamic(
   () => import("./components/features/nutrition-charts").then((m) => m.NutritionCharts),
   { ssr: false, loading: () => <div className="h-48 rounded-2xl bg-slate-100 animate-pulse" /> }
 );
-
-function convertToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = (err) => reject(err);
-  });
-}
 
 type Tab = "diary" | "history" | "profile";
 
@@ -47,7 +39,7 @@ export default function Home() {
     setData(null);
 
     try {
-      const images = await Promise.all(files.map(convertToBase64));
+      const images = await Promise.all(files.map(prepareImageForUpload));
 
       const response = await fetch("/api/analyze-food", {
         method: "POST",
