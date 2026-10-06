@@ -2,10 +2,25 @@ import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import sharp from "sharp";
 import db from "@/lib/db";
+import { rateLimit, clientKey } from "@/lib/rate-limit";
 
 export const maxDuration = 60;
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+// Rota cara: cada POST chama a API da Anthropic e consome credito do dono.
+// 10 req/min por IP contem abuso sem incomodar o uso pessoal normal.
+const RATE_LIMIT_MAX_REQUESTS = 10;
+const RATE_LIMIT_WINDOW_MS = 60_000;
+
+// Teto por imagem: ~8MB de texto de data URL (prefixo + base64). Base64 infla
+// ~33% sobre os bytes originais, entao isso equivale a ~6MB de imagem decodificada -
+// confortavel para uma foto de celular e barato de rejeitar antes do sharp/Anthropic.
+const MAX_IMAGE_DATA_URL_CHARS = 8 * 1024 * 1024;
+
+// Teto do total das ate 5 imagens somadas: ~20MB de data URL (~15MB decodificado).
+// Evita contornar o teto por imagem mandando varias imagens proximas do limite individual.
+const MAX_TOTAL_DATA_URL_CHARS = 20 * 1024 * 1024;
 
 const BodySchema = z.object({
   images: z.array(z.string().min(1)).min(1).max(5),
@@ -29,14 +44,48 @@ function extractBase64(dataUrl: string): { data: string; mediaType: "image/jpeg"
 }
 
 export async function POST(req: Request) {
+  // Rate limit antes de qualquer trabalho caro: antes de ler o corpo, antes
+  // do sharp, antes da chamada a Anthropic.
+  const rl = rateLimit(`analyze:${clientKey(req)}`, RATE_LIMIT_MAX_REQUESTS, RATE_LIMIT_WINDOW_MS);
+  if (!rl.ok) {
+    return new Response(
+      JSON.stringify({ error: "Muitas requisicoes. Tente novamente mais tarde." }),
+      {
+        status: 429,
+        headers: {
+          "Content-Type": "application/json",
+          "Retry-After": String(rl.retryAfterSeconds),
+        },
+      }
+    );
+  }
+
   try {
-    const parsed = BodySchema.safeParse(await req.json());
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return new Response("Imagem nao fornecida", { status: 400 });
+    }
+
+    const parsed = BodySchema.safeParse(body);
     if (!parsed.success) {
       return new Response("Imagem nao fornecida", { status: 400 });
     }
 
     const { images } = parsed.data;
-    const model = process.env.ANTHROPIC_MODEL ?? "claude-3-haiku-20240307";
+
+    // Teto de bytes antes de decodificar/redimensionar ou chamar a Anthropic:
+    // rejeicao barata (so compara o tamanho das strings).
+    if (images.some((img) => img.length > MAX_IMAGE_DATA_URL_CHARS)) {
+      return new Response("Imagem muito grande", { status: 400 });
+    }
+    const totalChars = images.reduce((sum, img) => sum + img.length, 0);
+    if (totalChars > MAX_TOTAL_DATA_URL_CHARS) {
+      return new Response("Imagens excedem o tamanho total permitido", { status: 400 });
+    }
+
+    const model = process.env.ANTHROPIC_MODEL || "claude-haiku-4-5";
 
     const imageContent = images.map((img) => {
       const { data, mediaType } = extractBase64(img);
@@ -83,7 +132,7 @@ export async function POST(req: Request) {
     const analysis = JSON.parse(jsonMatch[0]);
 
     const thumbnail = await resizeToThumbnail(images[0]);
-    await db.from("meals").insert({
+    const { error: insertError } = await db.from("meals").insert({
       food_name: analysis.food_name,
       calories: analysis.calories,
       protein: analysis.macros.protein,
@@ -94,6 +143,7 @@ export async function POST(req: Request) {
       explanation: analysis.explanation,
       image_base64: thumbnail
     });
+    if (insertError) console.error("Erro ao salvar refeicao:", insertError.message);
 
     return Response.json(analysis);
   } catch (error) {
