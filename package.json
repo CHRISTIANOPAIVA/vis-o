@@ -3,7 +3,7 @@
     "@ai-sdk/anthropic": "^2.0.74",
     "@ai-sdk/google": "^3.0.59",
     "@ai-sdk/openai": "^2.0.86",
-    "@anthropic-ai/sdk": "^0.82.0",
+    "@anthropic-ai/sdk": "^0.131.0",
     "@supabase/supabase-js": "^2.101.1",
     "@types/better-sqlite3": "^7.6.13",
     "@types/sharp": "^0.31.1",

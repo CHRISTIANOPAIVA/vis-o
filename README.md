@@ -1,6 +1,6 @@
 # NutriVision
 
-Aplicação web mobile-first que usa IA (GPT-4o Vision) para analisar fotos de refeições e estimar calorias e macronutrientes automaticamente. Suporta múltiplas fotos por refeição, metas nutricionais personalizadas, histórico com gráficos e edição manual dos resultados.
+Aplicação web mobile-first que usa IA (Claude Opus 5.5, da Anthropic) para analisar fotos de refeições e estimar calorias e macronutrientes automaticamente. Suporta múltiplas fotos por refeição, metas nutricionais personalizadas, histórico com gráficos e edição manual dos resultados.
 
 ## Funcionalidades
 
@@ -14,7 +14,7 @@ Aplicação web mobile-first que usa IA (GPT-4o Vision) para analisar fotos de r
 
 - **Node.js** 18 ou superior
 - **npm** 9 ou superior
-- **Chave de API da OpenAI** com acesso ao modelo `gpt-4o`
+- **Chave de API da Anthropic** (`ANTHROPIC_API_KEY`) com acesso ao modelo `claude-opus-5-5`
 
 ## Instalação
 
@@ -29,13 +29,13 @@ npm install
 # 3. Configure a variável de ambiente
 cp .env.example .env
 # Edite o arquivo .env e adicione sua chave:
-# OPENAI_API_KEY=sk-...
+# ANTHROPIC_API_KEY=sk-ant-...
 ```
 
 > **Nota:** se não houver `.env.example`, crie um arquivo `.env` na raiz com o conteúdo abaixo:
 >
 > ```env
-> OPENAI_API_KEY=sk-sua-chave-aqui
+> ANTHROPIC_API_KEY=sk-ant-sua-chave-aqui
 > ```
 
 ## Rodando em desenvolvimento
@@ -63,7 +63,7 @@ visão/
 │   ├── page.tsx                        # Página principal (abas: Diário, Histórico, Perfil)
 │   ├── layout.tsx                      # Layout raiz com cabeçalho
 │   ├── api/
-│   │   ├── analyze-food/route.ts       # POST — análise de imagem via GPT-4o
+│   │   ├── analyze-food/route.ts       # POST — análise de imagem via Claude
 │   │   ├── meals/
 │   │   │   ├── route.ts                # GET / DELETE / PATCH — histórico de refeições
 │   │   │   └── stats/route.ts          # GET — agregação diária para gráficos
@@ -97,7 +97,8 @@ O banco SQLite é criado automaticamente em `data/nutrivision.db` na primeira ex
 
 | Variável | Obrigatória | Descrição |
 |---|---|---|
-| `OPENAI_API_KEY` | Sim | Chave da API OpenAI com acesso ao `gpt-4o` |
+| `ANTHROPIC_API_KEY` | Sim | Chave da API da Anthropic |
+| `ANTHROPIC_MODEL` | Não | Modelo usado na análise (padrão: `claude-opus-5-5`) |
 
 ## Stack
 
@@ -105,7 +106,7 @@ O banco SQLite é criado automaticamente em `data/nutrivision.db` na primeira ex
 |---|---|
 | Framework | Next.js 16 (App Router) |
 | UI | React 19 + Tailwind CSS |
-| IA | GPT-4o via Vercel AI SDK (`ai` + `@ai-sdk/openai`) |
+| IA | Claude Opus 5.5 via SDK oficial da Anthropic (`@anthropic-ai/sdk`) |
 | Banco | SQLite (`better-sqlite3`) |
 | Imagens | `sharp` (resize de thumbnails) |
 | Gráficos | Recharts |

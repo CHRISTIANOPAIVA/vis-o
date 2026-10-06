@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
 import sharp from "sharp";
 import db from "@/lib/db";
@@ -9,6 +10,19 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const BodySchema = z.object({
   images: z.array(z.string().min(1)).min(1).max(5),
+});
+
+const AnalysisSchema = z.object({
+  food_name: z.string().describe("nome curto do prato"),
+  calories: z.number().describe("calorias totais (kcal)"),
+  macros: z.object({
+    protein: z.number().describe("gramas"),
+    carbs: z.number().describe("gramas"),
+    fat: z.number().describe("gramas"),
+    fiber: z.number().describe("gramas"),
+  }),
+  confidence: z.enum(["high", "medium", "low"]),
+  explanation: z.string().describe("frase curta, max 20 palavras"),
 });
 
 async function resizeToThumbnail(base64: string): Promise<string> {
@@ -36,7 +50,7 @@ export async function POST(req: Request) {
     }
 
     const { images } = parsed.data;
-    const model = process.env.ANTHROPIC_MODEL ?? "claude-3-haiku-20240307";
+    const model = process.env.ANTHROPIC_MODEL ?? "claude-opus-5-5";
 
     const imageContent = images.map((img) => {
       const { data, mediaType } = extractBase64(img);
@@ -46,10 +60,15 @@ export async function POST(req: Request) {
       };
     });
 
-    const response = await client.messages.create({
+    const response = await client.beta.messages.parse({
       model,
-      max_tokens: 1024,
-      system: "Voce e um nutricionista experiente. Analise as imagens da comida fornecidas com precisao. Responda APENAS com um JSON valido seguindo exatamente o schema fornecido, sem texto adicional.",
+      max_tokens: 16000,
+      // Thinking is always on for this model; effort controls how much it thinks.
+      output_config: { effort: "low", format: betaZodOutputFormat(AnalysisSchema) },
+      // If a safety classifier declines, the API retries on Anthropic's recommended fallback model.
+      betas: ["server-side-fallback-2026-07-01"],
+      fallbacks: "default",
+      system: "Voce e um nutricionista experiente. Analise as imagens da comida fornecidas com precisao.",
       messages: [
         {
           role: "user",
@@ -57,30 +76,18 @@ export async function POST(req: Request) {
             ...imageContent,
             {
               type: "text",
-              text: `Analise esta refeicao (${images.length} foto${images.length > 1 ? "s" : ""}) e retorne um JSON com este formato exato:
-{
-  "food_name": "nome curto do prato",
-  "calories": numero_total,
-  "macros": {
-    "protein": gramas,
-    "carbs": gramas,
-    "fat": gramas,
-    "fiber": gramas
-  },
-  "confidence": "high" ou "medium" ou "low",
-  "explanation": "frase curta max 20 palavras"
-}`
+              text: `Analise esta refeicao (${images.length} foto${images.length > 1 ? "s" : ""}) e estime o prato, as calorias totais e os macronutrientes.`
             }
           ]
         }
       ]
     });
 
-    const text = response.content[0].type === "text" ? response.content[0].text : "";
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error("No JSON in response: " + text);
-
-    const analysis = JSON.parse(jsonMatch[0]);
+    if (response.stop_reason === "refusal") {
+      throw new Error("Analysis refused: " + (response.stop_details?.category ?? "unknown"));
+    }
+    const analysis = response.parsed_output;
+    if (!analysis) throw new Error("No structured output (stop_reason: " + response.stop_reason + ")");
 
     const thumbnail = await resizeToThumbnail(images[0]);
     await db.from("meals").insert({
