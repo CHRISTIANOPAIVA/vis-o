@@ -60,11 +60,23 @@ async function resizeToThumbnail(base64: string): Promise<string> {
   return "data:image/jpeg;base64," + resized.toString("base64");
 }
 
-function extractBase64(dataUrl: string): { data: string; mediaType: "image/jpeg" | "image/png" | "image/gif" | "image/webp" } {
-  const match = dataUrl.match(/^data:(image\/\w+);base64,(.+)$/);
-  if (!match) throw new Error("Invalid image format");
-  const mediaType = match[1] as "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+const SUPPORTED_MEDIA_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"] as const;
+type SupportedMediaType = (typeof SUPPORTED_MEDIA_TYPES)[number];
+
+// null quando nao e um data URL base64 ou o formato nao e aceito pela API
+// (ex.: HEIC enviado cru quando o navegador nao conseguiu converter).
+function extractBase64(dataUrl: string): { data: string; mediaType: SupportedMediaType } | null {
+  const match = dataUrl.match(/^data:(image\/[\w.+-]+);base64,(.+)$/);
+  if (!match) return null;
+  const mediaType = match[1] as SupportedMediaType;
+  if (!SUPPORTED_MEDIA_TYPES.includes(mediaType)) return null;
   return { data: match[2], mediaType };
+}
+
+// Todas as respostas de erro da rota usam o mesmo formato JSON do 429 e do
+// middleware, para o cliente poder mostrar a mensagem certa.
+function errorResponse(status: number, error: string, headers?: Record<string, string>): Response {
+  return Response.json({ error }, { status, headers });
 }
 
 export async function POST(req: Request) {
@@ -72,16 +84,9 @@ export async function POST(req: Request) {
   // do sharp, antes da chamada a Anthropic.
   const rl = rateLimit(`analyze:${clientKey(req)}`, RATE_LIMIT_MAX_REQUESTS, RATE_LIMIT_WINDOW_MS);
   if (!rl.ok) {
-    return new Response(
-      JSON.stringify({ error: "Muitas requisicoes. Tente novamente mais tarde." }),
-      {
-        status: 429,
-        headers: {
-          "Content-Type": "application/json",
-          "Retry-After": String(rl.retryAfterSeconds),
-        },
-      }
-    );
+    return errorResponse(429, "Muitas requisicoes. Tente novamente em instantes.", {
+      "Retry-After": String(rl.retryAfterSeconds),
+    });
   }
 
   try {
@@ -89,12 +94,12 @@ export async function POST(req: Request) {
     try {
       body = await req.json();
     } catch {
-      return new Response("Imagem nao fornecida", { status: 400 });
+      return errorResponse(400, "Imagem nao fornecida.");
     }
 
     const parsed = BodySchema.safeParse(body);
     if (!parsed.success) {
-      return new Response("Imagem nao fornecida", { status: 400 });
+      return errorResponse(400, "Envie de 1 a 5 imagens.");
     }
 
     const { images } = parsed.data;
@@ -102,22 +107,23 @@ export async function POST(req: Request) {
     // Teto de bytes antes de decodificar/redimensionar ou chamar a Anthropic:
     // rejeicao barata (so compara o tamanho das strings).
     if (images.some((img) => img.length > MAX_IMAGE_DATA_URL_CHARS)) {
-      return new Response("Imagem muito grande", { status: 400 });
+      return errorResponse(400, "Imagem muito grande.");
     }
     const totalChars = images.reduce((sum, img) => sum + img.length, 0);
     if (totalChars > MAX_TOTAL_DATA_URL_CHARS) {
-      return new Response("Imagens excedem o tamanho total permitido", { status: 400 });
+      return errorResponse(400, "As imagens excedem o tamanho total permitido.");
     }
 
     const model = process.env.ANTHROPIC_MODEL || "claude-haiku-4-5";
 
-    const imageContent = images.map((img) => {
-      const { data, mediaType } = extractBase64(img);
-      return {
-        type: "image" as const,
-        source: { type: "base64" as const, media_type: mediaType, data },
-      };
-    });
+    const extracted = images.map(extractBase64);
+    if (extracted.some((e) => e === null)) {
+      return errorResponse(400, "Formato de imagem nao suportado. Use JPEG, PNG, WEBP ou GIF.");
+    }
+    const imageContent = extracted.map(({ data, mediaType }) => ({
+      type: "image" as const,
+      source: { type: "base64" as const, media_type: mediaType, data },
+    }));
 
     // Structured outputs em vez de pedir JSON no prompt e extrair com regex.
     // Nao usar tool_choice forcado: ele retorna 400 em modelos mais novos
@@ -145,11 +151,31 @@ export async function POST(req: Request) {
     const analysis = response.parsed_output;
     if (!analysis || !hasSaneValues(analysis)) {
       console.error("Resposta da IA invalida:", response.stop_reason, JSON.stringify(response.content));
-      return new Response("A IA nao retornou uma analise valida. Tente outra foto.", { status: 502 });
+      return errorResponse(502, "A IA nao retornou uma analise valida. Tente outra foto.");
     }
 
-    const thumbnail = await resizeToThumbnail(images[0]);
-    const { error: insertError } = await db.from("meals").insert({
+    // A analise ja foi paga: se salvar falhar, ela volta mesmo assim, com
+    // saved=false para o cliente avisar que nao entrou no historico.
+    const saved = await saveMeal(analysis, images[0]);
+    return Response.json({ ...analysis, saved });
+  } catch (error) {
+    if (error instanceof Anthropic.APIError) {
+      console.error("Erro da API da Anthropic:", error.status, error.message);
+      // 429 (limite da conta) e 529 (sobrecarga) passam com o tempo.
+      if (error.status === 429 || error.status === 529) {
+        return errorResponse(503, "A IA esta ocupada agora. Tente novamente em instantes.");
+      }
+      return errorResponse(502, "A IA nao conseguiu analisar a imagem. Tente outra foto.");
+    }
+    console.error("Erro na analise:", error);
+    return errorResponse(500, "Erro inesperado ao analisar a imagem.");
+  }
+}
+
+async function saveMeal(analysis: Analysis, firstImage: string): Promise<boolean> {
+  try {
+    const thumbnail = await resizeToThumbnail(firstImage);
+    const { error } = await db.from("meals").insert({
       food_name: analysis.food_name,
       calories: analysis.calories,
       protein: analysis.macros.protein,
@@ -158,13 +184,15 @@ export async function POST(req: Request) {
       fiber: analysis.macros.fiber,
       confidence: analysis.confidence,
       explanation: analysis.explanation,
-      image_base64: thumbnail
+      image_base64: thumbnail,
     });
-    if (insertError) console.error("Erro ao salvar refeicao:", insertError.message);
-
-    return Response.json(analysis);
+    if (error) {
+      console.error("Erro ao salvar refeicao:", error.message);
+      return false;
+    }
+    return true;
   } catch (error) {
-    console.error("Erro na analise:", error);
-    return new Response("Erro ao processar imagem", { status: 500 });
+    console.error("Erro ao salvar refeicao:", error);
+    return false;
   }
 }

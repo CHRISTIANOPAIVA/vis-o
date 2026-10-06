@@ -41,6 +41,12 @@ export interface NutritionAnalysis {
   explanation: string;
 }
 
+// Resposta de POST /api/analyze-food: saved=false quando a analise deu certo
+// mas nao foi gravada no historico.
+export interface AnalyzeFoodResponse extends NutritionAnalysis {
+  saved: boolean;
+}
+
 export interface Meal {
   id: number;
   created_at: string;

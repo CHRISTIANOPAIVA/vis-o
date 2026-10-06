@@ -257,3 +257,40 @@ igual para o cliente (mesmo shape de `NutritionAnalysis`); `npx tsc --noEmit` ex
     responde 500 (`extractBase64` não valida o media type). Fica para o item 6.
   - Insert no Supabase falhou no teste local (projeto não existe mais, NXDOMAIN).
     Só loga, então a análise ainda volta para o cliente (item 5).
+
+# Rodada 4 — Erros da análise (itens 5, 6 e 7)
+
+### [x] R3 — imagem em formato não suportado (item 6)
+Arquivo: `app/api/analyze-food/route.ts`
+- `extractBase64` lança erro → 500. Validar o media type (jpeg/png/gif/webp) antes
+  de chamar a IA e responder 400 com mensagem clara (ex.: HEIC no Chrome).
+- Erros da API da Anthropic: 429/529 → 503 "IA ocupada"; demais → 502.
+Critérios: `data:image/heic` → 400; data URL malformado → 400; nada de 500 genérico.
+
+### [x] R4 — falha ao salvar não é silenciosa (item 5)
+Arquivos: `app/api/analyze-food/route.ts`, `types/index.ts`, `app/page.tsx`
+- Análise já paga não é descartada: resposta 200 com `saved: boolean`.
+- Falha no thumbnail (sharp) ou no insert → `saved: false` + log; cliente mostra
+  aviso "não foi salva no histórico" e não recarrega o histórico.
+Critérios: com Supabase fora do ar → 200 com `saved: false` e aviso na tela.
+
+### [x] R5 — mensagens de erro específicas no cliente (item 7)
+Arquivos: `app/api/analyze-food/route.ts`, `app/page.tsx`
+- Toda resposta de erro da rota vira JSON `{ error }` (429 e middleware já são).
+- Cliente mostra o `error` do servidor; 401 → redireciona para /login.
+Critérios: 400/429/502/503 exibem mensagens distintas; `npx tsc --noEmit` exit 0.
+
+## Revisão — Rodada 4
+- `npx tsc --noEmit`: exit 0.
+- E2E no dev server (curl, logado):
+  - sem cookie → 401 `{"error":"Nao autorizado"}`
+  - `data:image/heic` → 400 "Formato de imagem nao suportado…"
+  - string que não é data URL → 400 (mesma mensagem)
+  - `{}` → 400 "Envie de 1 a 5 imagens."
+  - JPEG com bytes inválidos → Anthropic 400 → 502 "A IA nao conseguiu analisar…"
+  - JPEG válido → 200 com `saved: true` (o Supabase voltou a resolver)
+  - JPEG válido com `SUPABASE_URL` inválido → 200 com `saved: false`, log "Erro ao salvar refeicao"
+- Não testado no navegador: aviso âmbar e redirect 401 em `app/page.tsx`
+  (lógica simples, coberta pelo typecheck).
+- Efeito colateral: o teste com o Supabase real gravou 1 linha de teste
+  ("Prato não identificado", 0 kcal) na tabela `meals`.
