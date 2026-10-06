@@ -4,6 +4,7 @@ import { z } from "zod";
 import sharp from "sharp";
 import db from "@/lib/db";
 import { rateLimit, clientKey } from "@/lib/rate-limit";
+import { errorResponse } from "@/lib/api";
 
 export const maxDuration = 60;
 
@@ -71,12 +72,6 @@ function extractBase64(dataUrl: string): { data: string; mediaType: SupportedMed
   const mediaType = match[1] as SupportedMediaType;
   if (!SUPPORTED_MEDIA_TYPES.includes(mediaType)) return null;
   return { data: match[2], mediaType };
-}
-
-// Todas as respostas de erro da rota usam o mesmo formato JSON do 429 e do
-// middleware, para o cliente poder mostrar a mensagem certa.
-function errorResponse(status: number, error: string, headers?: Record<string, string>): Response {
-  return Response.json({ error }, { status, headers });
 }
 
 export async function POST(req: Request) {

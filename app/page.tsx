@@ -28,8 +28,12 @@ export default function Home() {
   const [profile, setProfile] = useState<UserProfileWithTargets | null>(null);
 
   useEffect(() => {
+    // Sem perfil (erro do banco), as metas caem nos valores de referencia.
     fetch("/api/profile")
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then((p: UserProfileWithTargets) => setProfile(p))
       .catch(() => {});
   }, []);

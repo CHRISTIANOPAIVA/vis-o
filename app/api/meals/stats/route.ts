@@ -1,4 +1,5 @@
 import db from "@/lib/db";
+import { dbErrorResponse } from "@/lib/api";
 import { parseTimestamp } from "@/lib/date";
 import type { DailyNutrition } from "@/types";
 
@@ -39,7 +40,7 @@ export async function GET(req: Request) {
     .select("created_at, calories, protein, carbs, fat, fiber")
     .gte("created_at", since.toISOString());
 
-  if (error) return new Response(error.message, { status: 500 });
+  if (error) return dbErrorResponse("Erro ao buscar estatisticas", error);
 
   // Group by local date (fuso do usuário)
   const grouped = new Map<string, DailyNutrition>();

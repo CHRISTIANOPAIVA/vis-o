@@ -27,8 +27,16 @@ export function NutritionCharts({ refreshKey, targets }: NutritionChartsProps) {
   useEffect(() => {
     setLoading(true);
     fetch(`/api/meals/stats?days=${days}&tz=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)}`)
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then((d: DailyNutrition[]) => setData(d))
+      // Erro (ex.: { error } com 500) nao pode virar `data`: o .map quebraria a pagina.
+      .catch((err) => {
+        console.error("Erro ao carregar estatisticas:", err);
+        setData([]);
+      })
       .finally(() => setLoading(false));
   }, [days, refreshKey]);
 

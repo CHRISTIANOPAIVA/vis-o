@@ -294,3 +294,50 @@ Critérios: 400/429/502/503 exibem mensagens distintas; `npx tsc --noEmit` exit 
   (lógica simples, coberta pelo typecheck).
 - Efeito colateral: o teste com o Supabase real gravou 1 linha de teste
   ("Prato não identificado", 0 kcal) na tabela `meals`.
+
+# Rodada 5 — Histórico paginado, perfil e vazamento de erros (itens 8, 9 e 10)
+
+### [x] R6 — paginar GET /api/meals (item 8)
+Arquivos: `app/api/meals/route.ts`, `app/components/features/meal-history.tsx`, `types/index.ts`
+- Hoje devolve todas as refeições com thumbnail (~10 KB cada) numa resposta só.
+- Keyset por `id` (identity = ordem de inserção = `created_at`): `?limit=` (padrão
+  30, máx. 100) e `?before=<id>`. Resposta `{ meals, nextCursor }`.
+- Cliente: botão "Carregar mais"; erro ao carregar vira mensagem, não crash.
+Critérios: `limit`/`before` respeitados; `nextCursor` nulo na última página;
+parâmetro inválido → 400.
+
+### [x] R7 — perfil não esconde erro do banco (item 9)
+Arquivo: `app/api/profile/route.ts`
+- `.single()` + ignorar `error` → falha do banco virava perfil padrão falso.
+- `.maybeSingle()`: sem linha → padrão (legítimo); erro → 500.
+Critérios: banco fora do ar → 500, não perfil padrão.
+
+### [x] R8 — não vazar `error.message` (item 10)
+Arquivos: `lib/api.ts` (novo), rotas `meals`, `meals/stats`, `profile`, `analyze-food`
+- Helper `errorResponse` compartilhado (sai do analyze-food) + `dbErrorResponse`
+  que loga o erro e devolve `{ error }` genérico.
+Critérios: `grep "error.message" app/api` só em `console.error`; `tsc` exit 0.
+
+## Revisão — Rodada 5
+- `npx tsc --noEmit`: exit 0.
+- API com o banco real (curl, só leitura):
+  - `/api/meals` → 4 refeições, `nextCursor: null`.
+  - `?limit=2` → ids 5,4 com `next=4`.
+  - `?limit=2&before=4` → ids 3,2 com `next=null`.
+  - `limit=0`, `limit=abc` e `before=-1` → 400.
+  - `/api/profile` → 200.
+- API com `SUPABASE_URL` inválido: GET meals, profile e stats, PATCH/DELETE meals e
+  PUT profile → todos 500 `{"error":"Erro ao acessar o banco de dados."}`.
+  O detalhe ("fetch failed") fica só no log.
+- UI (Chrome headless, aba Histórico):
+  - Banco fora: aparece "Nao consegui carregar o historico".
+  - Banco real: a lista renderiza.
+- Regressão achada e corrigida: com erros em JSON, `nutrition-charts` punha
+  `{error}` em `data` e o `.map` derrubava a página inteira. O mesmo risco existia
+  no fetch do perfil em `page.tsx`. Os dois agora checam `r.ok`.
+- Não testado na UI: o botão "Carregar mais" (só há 4 refeições, a página tem 30).
+  A paginação em si foi coberta pelos testes de API.
+- Limitação aceita: "Calorias hoje" no histórico soma só as refeições carregadas.
+  Só erra com mais de 30 refeições no mesmo dia.
+- Fora do escopo (já existia antes): DELETE/PATCH no histórico atualizam a tela
+  sem checar `res.ok`. Uma falha some em silêncio.

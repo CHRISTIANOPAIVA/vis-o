@@ -61,3 +61,10 @@ export interface Meal {
   image_base64: string | null;
   is_edited: boolean;
 }
+
+// Pagina de GET /api/meals. nextCursor vai em `?before=` para a proxima
+// pagina; null quando nao ha mais refeicoes.
+export interface MealsPage {
+  meals: Meal[];
+  nextCursor: number | null;
+}
