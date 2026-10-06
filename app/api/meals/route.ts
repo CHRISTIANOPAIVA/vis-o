@@ -1,6 +1,10 @@
 import { z } from "zod";
 import db from "@/lib/db";
 
+const DeleteSchema = z.object({
+  id: z.number().int().positive(),
+});
+
 const PatchSchema = z.object({
   id:        z.number().int().positive(),
   food_name: z.string().min(1),
@@ -22,11 +26,19 @@ export async function GET() {
 }
 
 export async function DELETE(req: Request) {
-  const { id } = await req.json();
-  if (!id || typeof id !== "number") {
-    return new Response("ID invalido", { status: 400 });
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return new Response("JSON inválido", { status: 400 });
   }
 
+  const parsed = DeleteSchema.safeParse(body);
+  if (!parsed.success) {
+    return new Response(JSON.stringify(parsed.error.flatten()), { status: 400 });
+  }
+
+  const { id } = parsed.data;
   const { error } = await db.from("meals").delete().eq("id", id);
   if (error) return new Response(error.message, { status: 500 });
   return Response.json({ ok: true });

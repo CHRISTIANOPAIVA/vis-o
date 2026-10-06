@@ -53,5 +53,5 @@ export interface Meal {
   confidence: "high" | "medium" | "low";
   explanation: string;
   image_base64: string | null;
-  is_edited: 0 | 1;
+  is_edited: boolean;
 }

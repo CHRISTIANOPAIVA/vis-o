@@ -26,7 +26,7 @@ export function NutritionCharts({ refreshKey, targets }: NutritionChartsProps) {
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/meals/stats?days=${days}`)
+    fetch(`/api/meals/stats?days=${days}&tz=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)}`)
       .then((r) => r.json())
       .then((d: DailyNutrition[]) => setData(d))
       .finally(() => setLoading(false));

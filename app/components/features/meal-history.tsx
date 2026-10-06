@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { Trash2, Flame, Leaf, Pencil, X, Check } from "lucide-react";
 import { Meal, UserProfileWithTargets } from "@/types";
+import { parseTimestamp } from "@/lib/date";
 
 const FIELD_LABELS: Record<string, string> = {
   calories: "Calorias (kcal)",
@@ -18,7 +19,7 @@ interface MealHistoryProps {
 }
 
 function formatDate(isoStr: string): string {
-  const date = new Date(isoStr + "Z"); // SQLite datetime('now') is UTC
+  const date = parseTimestamp(isoStr);
   return date.toLocaleString("pt-BR", {
     day: "2-digit",
     month: "2-digit",
@@ -28,7 +29,7 @@ function formatDate(isoStr: string): string {
 }
 
 function isToday(isoStr: string): boolean {
-  const date = new Date(isoStr + "Z");
+  const date = parseTimestamp(isoStr);
   const now = new Date();
   return (
     date.getDate() === now.getDate() &&
@@ -101,7 +102,7 @@ export function MealHistory({ refreshKey, targets }: MealHistoryProps) {
       });
       setMeals((prev) =>
         prev.map((m) =>
-          m.id === id ? { ...m, ...editForm, is_edited: 1 } : m
+          m.id === id ? { ...m, ...editForm, is_edited: true } : m
         )
       );
       setEditingId(null);
@@ -186,7 +187,7 @@ export function MealHistory({ refreshKey, targets }: MealHistoryProps) {
                   <p className="font-semibold text-slate-800 truncate capitalize leading-tight">
                     {meal.food_name}
                   </p>
-                  {meal.is_edited === 1 && (
+                  {meal.is_edited && (
                     <span className="flex items-center gap-0.5 text-[9px] font-bold text-violet-500 bg-violet-50 border border-violet-100 px-1.5 py-0.5 rounded-full flex-shrink-0">
                       <Pencil className="w-2.5 h-2.5" /> Editado
                     </span>
