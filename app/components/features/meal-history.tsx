@@ -13,6 +13,22 @@ const FIELD_LABELS: Record<string, string> = {
   fiber:    "Fibras (g)",
 };
 
+type NumField = "calories" | "protein" | "carbs" | "fat" | "fiber";
+const NUM_FIELDS: NumField[] = ["calories", "protein", "carbs", "fat", "fiber"];
+type EditForm = { food_name: string } & Record<NumField, string>;
+
+const GENERIC_ERROR = "Nao foi possivel concluir a operacao. Tente novamente.";
+
+async function readError(res: Response): Promise<string> {
+  try {
+    const body = await res.json();
+    if (body && typeof body.error === "string" && body.error) return body.error;
+  } catch {
+    // corpo nao e JSON
+  }
+  return GENERIC_ERROR;
+}
+
 interface MealHistoryProps {
   refreshKey: number;
   targets?: UserProfileWithTargets | null;
@@ -46,8 +62,25 @@ export function MealHistory({ refreshKey, targets }: MealHistoryProps) {
   const [nextCursor, setNextCursor] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [editForm, setEditForm] = useState<Partial<Meal>>({});
+  const [editForm, setEditForm] = useState<EditForm | null>(null);
   const [saving, setSaving] = useState(false);
+  const [confirmId, setConfirmId] = useState<number | null>(null);
+  const [rowErrors, setRowErrors] = useState<Record<number, string>>({});
+
+  const setRowError = (id: number, msg: string | null) =>
+    setRowErrors((prev) => {
+      const next = { ...prev };
+      if (msg) next[id] = msg;
+      else delete next[id];
+      return next;
+    });
+
+  // Confirmacao de exclusao expira apos alguns segundos
+  useEffect(() => {
+    if (confirmId === null) return;
+    const t = setTimeout(() => setConfirmId(null), 4000);
+    return () => clearTimeout(t);
+  }, [confirmId]);
 
   const fetchPage = async (before: number | null): Promise<MealsPage | null> => {
     try {
@@ -86,14 +119,26 @@ export function MealHistory({ refreshKey, targets }: MealHistoryProps) {
   }, [fetchMeals, refreshKey]);
 
   const handleDelete = async (id: number) => {
+    setConfirmId(null);
     setDeletingId(id);
+    setRowError(id, null);
     try {
-      await fetch("/api/meals", {
+      const res = await fetch("/api/meals", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id }),
       });
-      setMeals((prev) => prev.filter((m) => m.id !== id));
+      if (res.status === 401) {
+        window.location.href = "/login";
+        return;
+      }
+      if (res.ok || res.status === 404) {
+        setMeals((prev) => prev.filter((m) => m.id !== id));
+        return;
+      }
+      setRowError(id, await readError(res));
+    } catch {
+      setRowError(id, GENERIC_ERROR);
     } finally {
       setDeletingId(null);
     }
@@ -101,36 +146,72 @@ export function MealHistory({ refreshKey, targets }: MealHistoryProps) {
 
   const startEdit = (meal: Meal) => {
     setEditingId(meal.id);
+    setRowError(meal.id, null);
     setEditForm({
       food_name: meal.food_name,
-      calories: meal.calories,
-      protein: meal.protein,
-      carbs: meal.carbs,
-      fat: meal.fat,
-      fiber: meal.fiber,
+      calories: String(meal.calories),
+      protein: String(meal.protein),
+      carbs: String(meal.carbs),
+      fat: String(meal.fat),
+      fiber: String(meal.fiber),
     });
   };
 
   const cancelEdit = () => {
+    if (editingId !== null) setRowError(editingId, null);
     setEditingId(null);
-    setEditForm({});
+    setEditForm(null);
   };
 
   const saveEdit = async (id: number) => {
+    if (!editForm) return;
+    const name = editForm.food_name.trim();
+    if (!name) {
+      setRowError(id, "Informe o nome do alimento.");
+      return;
+    }
+    const values = {} as Record<NumField, number>;
+    for (const field of NUM_FIELDS) {
+      const raw = editForm[field].trim();
+      const n = raw === "" ? NaN : Number(raw);
+      if (!Number.isFinite(n) || n < 0) {
+        setRowError(id, `Valor invalido em ${FIELD_LABELS[field]}.`);
+        return;
+      }
+      values[field] = n;
+    }
     setSaving(true);
+    setRowError(id, null);
     try {
-      await fetch("/api/meals", {
+      const res = await fetch("/api/meals", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, ...editForm }),
+        body: JSON.stringify({ id, food_name: name, ...values }),
       });
+      if (res.status === 401) {
+        window.location.href = "/login";
+        return;
+      }
+      // Excluida em outra aba/dispositivo: tira da lista em vez de mostrar erro.
+      if (res.status === 404) {
+        setMeals((prev) => prev.filter((m) => m.id !== id));
+        setEditingId(null);
+        setEditForm(null);
+        return;
+      }
+      if (!res.ok) {
+        setRowError(id, await readError(res));
+        return;
+      }
       setMeals((prev) =>
         prev.map((m) =>
-          m.id === id ? { ...m, ...editForm, is_edited: true } : m
+          m.id === id ? { ...m, food_name: name, ...values, is_edited: true } : m
         )
       );
       setEditingId(null);
-      setEditForm({});
+      setEditForm(null);
+    } catch {
+      setRowError(id, GENERIC_ERROR);
     } finally {
       setSaving(false);
     }
@@ -247,42 +328,66 @@ export function MealHistory({ refreshKey, targets }: MealHistoryProps) {
                 >
                   <Pencil className="w-4 h-4" />
                 </button>
-                <button
-                  onClick={() => handleDelete(meal.id)}
-                  disabled={deletingId === meal.id}
-                  className="p-2 rounded-xl text-slate-300 hover:text-red-400 hover:bg-red-50 transition-colors disabled:opacity-40"
-                  aria-label="Excluir refeição"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                {confirmId === meal.id ? (
+                  <button
+                    onClick={() => handleDelete(meal.id)}
+                    disabled={deletingId === meal.id}
+                    className="p-2 rounded-xl text-white bg-red-500 hover:bg-red-600 transition-colors disabled:opacity-40"
+                    aria-label="Confirmar exclusão da refeição"
+                  >
+                    <Check className="w-4 h-4" />
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setConfirmId(meal.id)}
+                    disabled={deletingId === meal.id}
+                    className="p-2 rounded-xl text-slate-300 hover:text-red-400 hover:bg-red-50 transition-colors disabled:opacity-40"
+                    aria-label="Excluir refeição"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
               </div>
             </div>
 
+            {confirmId === meal.id && (
+              <p role="status" className="px-3 pb-2 text-xs text-red-500">
+                Toque novamente em confirmar para excluir.
+              </p>
+            )}
+            {rowErrors[meal.id] && editingId !== meal.id && (
+              <p role="alert" className="px-3 pb-2 text-xs text-red-500">{rowErrors[meal.id]}</p>
+            )}
+
             {/* Form de edição inline */}
-            {editingId === meal.id && (
+            {editingId === meal.id && editForm && (
               <div className="border-t border-slate-100 bg-slate-50 p-3 flex flex-col gap-3">
                 <input
                   type="text"
-                  value={editForm.food_name ?? ""}
-                  onChange={(e) => setEditForm((f) => ({ ...f, food_name: e.target.value }))}
+                  value={editForm.food_name}
+                  maxLength={200}
+                  onChange={(e) => setEditForm((f) => (f ? { ...f, food_name: e.target.value } : f))}
                   placeholder="Nome do alimento"
                   className="w-full text-sm bg-white border border-slate-200 rounded-xl px-3 py-2 outline-none focus:border-violet-400"
                 />
                 <div className="grid grid-cols-2 gap-2">
-                  {(["calories", "protein", "carbs", "fat", "fiber"] as const).map((field) => (
+                  {NUM_FIELDS.map((field) => (
                     <div key={field} className="flex flex-col gap-1">
                       <label className="text-[10px] font-bold uppercase text-slate-400">
                         {FIELD_LABELS[field]}
                       </label>
                       <input
                         type="number" min={0} step={0.1}
-                        value={editForm[field] ?? 0}
-                        onChange={(e) => setEditForm((f) => ({ ...f, [field]: parseFloat(e.target.value) || 0 }))}
+                        value={editForm[field]}
+                        onChange={(e) => setEditForm((f) => (f ? { ...f, [field]: e.target.value } : f))}
                         className="text-sm bg-white border border-slate-200 rounded-xl px-3 py-2 outline-none focus:border-violet-400"
                       />
                     </div>
                   ))}
                 </div>
+                {rowErrors[meal.id] && (
+                  <p role="alert" className="text-xs text-red-500">{rowErrors[meal.id]}</p>
+                )}
                 <div className="flex gap-2">
                   <button
                     onClick={() => saveEdit(meal.id)}

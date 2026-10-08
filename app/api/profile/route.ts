@@ -1,6 +1,6 @@
 import { z } from "zod";
 import db from "@/lib/db";
-import { dbErrorResponse } from "@/lib/api";
+import { errorResponse, dbErrorResponse } from "@/lib/api";
 import { computeTargets } from "@/lib/nutrition";
 import type { UserProfile } from "@/types";
 
@@ -40,12 +40,12 @@ export async function PUT(req: Request) {
   try {
     body = await req.json();
   } catch {
-    return new Response("JSON inválido", { status: 400 });
+    return errorResponse(400, "JSON invalido.");
   }
 
   const parsed = ProfileSchema.safeParse(body);
   if (!parsed.success) {
-    return new Response(JSON.stringify(parsed.error.flatten()), { status: 400 });
+    return errorResponse(400, "Dados do perfil invalidos.");
   }
 
   const { weight_kg, height_cm, age, sex, goal } = parsed.data;

@@ -9,8 +9,8 @@ const DeleteSchema = z.object({
 
 const PatchSchema = z.object({
   id:        z.number().int().positive(),
-  food_name: z.string().min(1),
-  calories:  z.number().int().nonnegative(),
+  food_name: z.string().trim().min(1).max(200),
+  calories:  z.number().nonnegative(), // coluna numeric: aceita decimal
   protein:   z.number().nonnegative(),
   carbs:     z.number().nonnegative(),
   fat:       z.number().nonnegative(),
@@ -62,17 +62,18 @@ export async function DELETE(req: Request) {
   try {
     body = await req.json();
   } catch {
-    return new Response("JSON inválido", { status: 400 });
+    return errorResponse(400, "JSON invalido.");
   }
 
   const parsed = DeleteSchema.safeParse(body);
   if (!parsed.success) {
-    return new Response(JSON.stringify(parsed.error.flatten()), { status: 400 });
+    return errorResponse(400, "Dados invalidos.");
   }
 
   const { id } = parsed.data;
-  const { error } = await db.from("meals").delete().eq("id", id);
+  const { data, error } = await db.from("meals").delete().eq("id", id).select("id");
   if (error) return dbErrorResponse("Erro ao excluir refeicao", error);
+  if (data.length === 0) return errorResponse(404, "Refeicao nao encontrada.");
   return Response.json({ ok: true });
 }
 
@@ -81,20 +82,22 @@ export async function PATCH(req: Request) {
   try {
     body = await req.json();
   } catch {
-    return new Response("JSON inválido", { status: 400 });
+    return errorResponse(400, "JSON invalido.");
   }
 
   const parsed = PatchSchema.safeParse(body);
   if (!parsed.success) {
-    return new Response(JSON.stringify(parsed.error.flatten()), { status: 400 });
+    return errorResponse(400, "Dados invalidos.");
   }
 
   const { id, food_name, calories, protein, carbs, fat, fiber } = parsed.data;
-  const { error } = await db
+  const { data, error } = await db
     .from("meals")
     .update({ food_name, calories, protein, carbs, fat, fiber, is_edited: true })
-    .eq("id", id);
+    .eq("id", id)
+    .select("id");
 
   if (error) return dbErrorResponse("Erro ao editar refeicao", error);
+  if (data.length === 0) return errorResponse(404, "Refeicao nao encontrada.");
   return Response.json({ ok: true });
 }

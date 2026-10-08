@@ -364,3 +364,46 @@ Critérios: `grep "error.message" app/api` só em `console.error`; `tsc` exit 0.
   senha errada 401, login 200, `/`, profile, meals (paginado), stats e analyze-food → 200
   com `saved: true`. Linha de teste (id 7) apagada do banco.
 - O `vercel curl` gerou um token de bypass da Deployment Protection no projeto.
+
+---
+
+# Rodada 7 — Bloco 1: mutações do histórico (branch `fix/history-mutations`)
+
+Origem: análise de melhorias de 2026-10-08, bugs 1–5.
+
+### [x] A — `api-error-shape` (sonnet, sem dependências)
+Arquivos: `app/api/meals/route.ts`, `app/api/profile/route.ts`
+- PATCH: `calories` aceita decimal (o banco é `numeric`, a IA devolve fracionado e o
+  form usa `step 0.1`); todos os números finitos e ≥ 0; `food_name` com trim.
+- DELETE/PATCH/PUT: erros de JSON e de validação via `errorResponse` → `{ error }`.
+- PATCH/DELETE de id inexistente → 404.
+Critérios: PATCH com `calories: 450.5` → 200; corpo inválido → 400 `{ error }` nas três
+rotas; id inexistente → 404; `npx tsc --noEmit` exit 0.
+
+### [x] B — `history-mutations-ui` (sonnet, dependsOn: A)
+Arquivos: `app/components/features/meal-history.tsx`, `app/components/features/profile-form.tsx`
+- DELETE/PATCH checam `res.ok`; só atualizam a tela no sucesso; erro visível na
+  refeição; 401 → `/login`.
+- Excluir em dois toques (confirmação inline, sem `window.confirm`).
+- Campos numéricos da edição guardam string; limpar não vira 0; valida no salvar.
+- `profile-form`: erro do PUT vira mensagem na tela, sem rejeição não tratada.
+Critérios: com a API falhando, editar/excluir não alteram a lista e mostram erro;
+1º toque no lixo não exclui; campo limpo fica vazio; `npx tsc --noEmit` exit 0.
+
+## Ondas
+- Onda 1: A
+- Onda 2: B
+
+## Revisão — Rodada 7
+
+| Subtarefa | Modelo | Status | Tentativas | Resumo |
+|---|---|---|---|---|
+| A `api-error-shape` | sonnet | passed | 1 | PATCH aceita calorias decimais; erros `{ error }` em DELETE/PATCH/PUT; id inexistente → 404 |
+| B `history-mutations-ui` | sonnet | passed | 1 | Edição/exclusão só mudam a tela no sucesso; erro por refeição; exclusão em dois toques; campos numéricos como string; erro visível no perfil |
+
+- Verificadores independentes testaram as rotas por HTTP e a UI no Chrome headless (puppeteer-core,
+  500/404/401 simulados por interceptação), com linhas de teste próprias no Supabase, todas apagadas.
+- Polimento pós-revisão (sugestões do verificador): PATCH 404 remove a refeição e fecha o form;
+  aviso de confirmação com `role="status"`. `tsc` exit 0 e build ok; este ajuste não foi testado no navegador.
+- Não feito (opcional): limpar o erro de uma refeição ao interagir com outra; cleanup do
+  `setTimeout` de "Salvo" no `profile-form` (pré-existente, inofensivo).
