@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth";
 
 // Escopo do gate: tudo, exceto os bundles estaticos do Next (que nao tem
-// nada sensivel e rodar middleware neles e so custo). As demais excecoes
+// nada sensivel e rodar o proxy neles e so custo). As demais excecoes
 // (rota de login, rota de login da API, manifest/icones do PWA) sao
 // tratadas DENTRO da funcao abaixo tambem - cinto e suspensorio - entao
 // mesmo que este matcher mude no futuro, elas continuam liberadas.
@@ -27,7 +27,7 @@ function isPublicApiPath(pathname: string): boolean {
   return pathname === "/api/auth";
 }
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   if (isPublicPath(pathname) || isPublicApiPath(pathname)) {

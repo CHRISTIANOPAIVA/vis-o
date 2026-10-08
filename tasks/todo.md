@@ -341,3 +341,18 @@ Critérios: `grep "error.message" app/api` só em `console.error`; `tsc` exit 0.
   Só erra com mais de 30 refeições no mesmo dia.
 - Fora do escopo (já existia antes): DELETE/PATCH no histórico atualizam a tela
   sem checar `res.ok`. Uma falha some em silêncio.
+
+# Rodada 6 — Limpeza pré-deploy Vercel
+
+- [x] Remover dependências sem uso: `ai`, `@ai-sdk/*` (3), `better-sqlite3`,
+  `@types/better-sqlite3`, `@types/sharp` (o sharp traz tipos próprios), `ngrok`,
+  `nextr`, `@netlify/plugin-nextjs`; apagar `netlify.toml` (deploy é só na Vercel).
+- [x] `tailwind.config.js` em ESM (`export default`), coerente com `"type": "module"`.
+- [x] `middleware.ts` → `proxy.ts` com `export function proxy` (convenção do Next 16).
+- [x] README reescrito para a stack atual (Claude, Supabase, gate de senha, variáveis).
+
+## Revisão — Rodada 6
+- `npx tsc --noEmit`: exit 0. `npm run build`: sem nenhum warning (antes: CJS do
+  tailwind e deprecação do middleware).
+- `next start` + curl: `/` sem sessão → 307 `/login`; `/api/meals` sem sessão → 401;
+  senha errada → 401; login → 200; com cookie, `/`, `/api/profile` e `/api/meals` → 200.

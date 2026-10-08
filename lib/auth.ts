@@ -1,9 +1,9 @@
 // lib/auth.ts
 //
 // Emissao e verificacao do token de sessao do gate de senha unica.
-// Este modulo e importado tanto pelo middleware (Edge runtime) quanto pela
-// route handler de login (Node runtime). Por isso usa apenas Web Crypto
-// (crypto.subtle), nunca node:crypto, que nao existe no Edge.
+// Este modulo e importado tanto pelo proxy.ts quanto pela
+// route handler de login. Usa apenas Web Crypto (crypto.subtle), que roda
+// em qualquer runtime (Node ou Edge), em vez de node:crypto.
 
 export const SESSION_COOKIE = "nv_session";
 
@@ -63,7 +63,7 @@ export async function verifySessionToken(token: string | undefined): Promise<boo
   if (!token) return false;
 
   // Fail closed: sem segredo configurado, nenhum token pode ser considerado
-  // valido (ver tambem middleware.ts, que checa isso de forma independente).
+  // valido (ver tambem proxy.ts, que checa isso de forma independente).
   const secret = process.env.AUTH_SECRET;
   if (!secret) return false;
 
