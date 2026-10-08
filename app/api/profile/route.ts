@@ -1,5 +1,6 @@
 import { z } from "zod";
 import db from "@/lib/db";
+import { dbErrorResponse } from "@/lib/api";
 import { computeTargets } from "@/lib/nutrition";
 import type { UserProfile } from "@/types";
 
@@ -20,11 +21,15 @@ const ProfileSchema = z.object({
 });
 
 export async function GET() {
-  const { data } = await db
+  // maybeSingle: tabela sem linha ainda (perfil nunca salvo) nao e erro e cai
+  // no padrao; erro de verdade do banco tem que aparecer, nao virar perfil falso.
+  const { data, error } = await db
     .from("user_profile")
-    .select("*")
+    .select("weight_kg, height_cm, age, sex, goal")
     .eq("id", 1)
-    .single();
+    .maybeSingle();
+
+  if (error) return dbErrorResponse("Erro ao buscar perfil", error);
 
   const profile = (data as UserProfile | null) ?? DEFAULT_PROFILE;
   return Response.json(computeTargets(profile));
@@ -48,6 +53,6 @@ export async function PUT(req: Request) {
     .from("user_profile")
     .upsert({ id: 1, weight_kg, height_cm, age, sex, goal, updated_at: new Date().toISOString() });
 
-  if (error) return new Response(error.message, { status: 500 });
+  if (error) return dbErrorResponse("Erro ao salvar perfil", error);
   return Response.json(computeTargets(parsed.data));
 }

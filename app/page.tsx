@@ -7,22 +7,14 @@ import { CameraInput } from "./components/features/camera-input";
 import { NutritionCard } from "./components/features/nutrition-card";
 import { MealHistory } from "./components/features/meal-history";
 import { ProfileForm } from "./components/features/profile-form";
-import type { NutritionAnalysis, UserProfileWithTargets } from "@/types";
+import type { AnalyzeFoodResponse, NutritionAnalysis, UserProfileWithTargets } from "@/types";
 import { cn } from "@/lib/utils";
+import { prepareImageForUpload } from "@/lib/image";
 
 const NutritionCharts = dynamic(
   () => import("./components/features/nutrition-charts").then((m) => m.NutritionCharts),
   { ssr: false, loading: () => <div className="h-48 rounded-2xl bg-slate-100 animate-pulse" /> }
 );
-
-function convertToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = (err) => reject(err);
-  });
-}
 
 type Tab = "diary" | "history" | "profile";
 
@@ -31,12 +23,17 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [data, setData] = useState<NutritionAnalysis | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
   const [historyKey, setHistoryKey] = useState(0);
   const [profile, setProfile] = useState<UserProfileWithTargets | null>(null);
 
   useEffect(() => {
+    // Sem perfil (erro do banco), as metas caem nos valores de referencia.
     fetch("/api/profile")
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then((p: UserProfileWithTargets) => setProfile(p))
       .catch(() => {});
   }, []);
@@ -44,10 +41,11 @@ export default function Home() {
   const handleImagesSelect = async (files: File[]) => {
     setIsLoading(true);
     setError(null);
+    setWarning(null);
     setData(null);
 
     try {
-      const images = await Promise.all(files.map(convertToBase64));
+      const images = await Promise.all(files.map(prepareImageForUpload));
 
       const response = await fetch("/api/analyze-food", {
         method: "POST",
@@ -55,14 +53,23 @@ export default function Home() {
         body: JSON.stringify({ images })
       });
 
-      if (!response.ok) throw new Error("Falha na analise da IA");
+      if (response.status === 401) {
+        window.location.href = "/login";
+        return;
+      }
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        setError(body?.error ?? "Ops! Nao consegui analisar essa imagem. Tente novamente.");
+        return;
+      }
 
-      const result: NutritionAnalysis = await response.json();
+      const { saved, ...result }: AnalyzeFoodResponse = await response.json();
       setData(result);
-      setHistoryKey((k) => k + 1);
+      if (saved) setHistoryKey((k) => k + 1);
+      else setWarning("A analise nao foi salva no historico. Tente novamente mais tarde.");
     } catch (err) {
       console.error(err);
-      setError("Ops! Nao consegui analisar essa imagem. Tente novamente.");
+      setError("Ops! Nao consegui analisar essa imagem. Verifique sua conexao e tente novamente.");
     } finally {
       setIsLoading(false);
     }
@@ -116,6 +123,12 @@ export default function Home() {
           {error && (
             <div className="p-4 bg-red-50 text-red-600 rounded-xl text-sm text-center border border-red-100">
               {error}
+            </div>
+          )}
+
+          {warning && (
+            <div className="p-4 bg-amber-50 text-amber-700 rounded-xl text-sm text-center border border-amber-100">
+              {warning}
             </div>
           )}
 

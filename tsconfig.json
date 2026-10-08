@@ -14,8 +14,6 @@
     "module": "esnext",
     "esModuleInterop": true,
     "moduleResolution": "bundler",
-    "ignoreDeprecations": "5.0",
-    "baseUrl": ".",
     "paths": {
       "@/*": [
         "./*"

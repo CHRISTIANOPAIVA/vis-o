@@ -11,6 +11,12 @@ const COLOR_STYLES: Record<string, { bg: string; text: string; bar: string }> = 
   purple: { bg: "bg-purple-50", text: "text-purple-700", bar: "bg-purple-500" },
 };
 
+const CONFIDENCE_STYLES: Record<NutritionAnalysis["confidence"], { label: string; icon: string }> = {
+  high:   { label: "Alta",  icon: "text-emerald-500" },
+  medium: { label: "Media", icon: "text-amber-500" },
+  low:    { label: "Baixa", icon: "text-rose-500" },
+};
+
 interface NutritionCardProps {
   data: NutritionAnalysis;
   targets?: UserProfileWithTargets | null;
@@ -37,13 +43,10 @@ export function NutritionCard({ data, targets }: NutritionCardProps) {
             </h3>
             <div className="flex items-center gap-1.5 mt-2">
               <CheckCircle2
-                className={cn(
-                  "w-4 h-4",
-                  data.confidence === "high" ? "text-emerald-500" : "text-amber-500"
-                )}
+                className={cn("w-4 h-4", CONFIDENCE_STYLES[data.confidence].icon)}
               />
               <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">
-                Confianca {data.confidence === "high" ? "Alta" : "Media"}
+                Confianca {CONFIDENCE_STYLES[data.confidence].label}
               </span>
             </div>
           </div>

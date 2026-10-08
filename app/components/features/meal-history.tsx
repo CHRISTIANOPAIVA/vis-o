@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { Trash2, Flame, Leaf, Pencil, X, Check } from "lucide-react";
-import { Meal, UserProfileWithTargets } from "@/types";
+import { Meal, MealsPage, UserProfileWithTargets } from "@/types";
+import { parseTimestamp } from "@/lib/date";
 
 const FIELD_LABELS: Record<string, string> = {
   calories: "Calorias (kcal)",
@@ -18,7 +19,7 @@ interface MealHistoryProps {
 }
 
 function formatDate(isoStr: string): string {
-  const date = new Date(isoStr + "Z"); // SQLite datetime('now') is UTC
+  const date = parseTimestamp(isoStr);
   return date.toLocaleString("pt-BR", {
     day: "2-digit",
     month: "2-digit",
@@ -28,7 +29,7 @@ function formatDate(isoStr: string): string {
 }
 
 function isToday(isoStr: string): boolean {
-  const date = new Date(isoStr + "Z");
+  const date = parseTimestamp(isoStr);
   const now = new Date();
   return (
     date.getDate() === now.getDate() &&
@@ -40,21 +41,45 @@ function isToday(isoStr: string): boolean {
 export function MealHistory({ refreshKey, targets }: MealHistoryProps) {
   const [meals, setMeals] = useState<Meal[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [nextCursor, setNextCursor] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<Partial<Meal>>({});
   const [saving, setSaving] = useState(false);
 
+  const fetchPage = async (before: number | null): Promise<MealsPage | null> => {
+    try {
+      const res = await fetch(before === null ? "/api/meals" : `/api/meals?before=${before}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (err) {
+      console.error("Erro ao carregar refeicoes:", err);
+      return null;
+    }
+  };
+
   const fetchMeals = useCallback(async () => {
     setLoading(true);
-    try {
-      const res = await fetch("/api/meals");
-      const data: Meal[] = await res.json();
-      setMeals(data);
-    } finally {
-      setLoading(false);
-    }
+    const page = await fetchPage(null);
+    setLoadError(page === null);
+    setMeals(page?.meals ?? []);
+    setNextCursor(page?.nextCursor ?? null);
+    setLoading(false);
   }, []);
+
+  const loadMore = async () => {
+    if (nextCursor === null) return;
+    setLoadingMore(true);
+    const page = await fetchPage(nextCursor);
+    if (page) {
+      setMeals((prev) => [...prev, ...page.meals]);
+      setNextCursor(page.nextCursor);
+    }
+    setLoadError(page === null);
+    setLoadingMore(false);
+  };
 
   useEffect(() => {
     fetchMeals();
@@ -101,7 +126,7 @@ export function MealHistory({ refreshKey, targets }: MealHistoryProps) {
       });
       setMeals((prev) =>
         prev.map((m) =>
-          m.id === id ? { ...m, ...editForm, is_edited: 1 } : m
+          m.id === id ? { ...m, ...editForm, is_edited: true } : m
         )
       );
       setEditingId(null);
@@ -121,6 +146,14 @@ export function MealHistory({ refreshKey, targets }: MealHistoryProps) {
         {[1, 2, 3].map((i) => (
           <div key={i} className="h-20 rounded-2xl bg-slate-100 animate-pulse" />
         ))}
+      </div>
+    );
+  }
+
+  if (loadError && meals.length === 0) {
+    return (
+      <div className="p-4 bg-red-50 text-red-600 rounded-xl text-sm text-center border border-red-100">
+        Nao consegui carregar o historico. Tente novamente mais tarde.
       </div>
     );
   }
@@ -186,7 +219,7 @@ export function MealHistory({ refreshKey, targets }: MealHistoryProps) {
                   <p className="font-semibold text-slate-800 truncate capitalize leading-tight">
                     {meal.food_name}
                   </p>
-                  {meal.is_edited === 1 && (
+                  {meal.is_edited && (
                     <span className="flex items-center gap-0.5 text-[9px] font-bold text-violet-500 bg-violet-50 border border-violet-100 px-1.5 py-0.5 rounded-full flex-shrink-0">
                       <Pencil className="w-2.5 h-2.5" /> Editado
                     </span>
@@ -270,6 +303,20 @@ export function MealHistory({ refreshKey, targets }: MealHistoryProps) {
           </div>
         ))}
       </div>
+
+      {loadError && (
+        <p className="text-xs text-center text-red-500">Nao consegui carregar mais refeicoes.</p>
+      )}
+
+      {nextCursor !== null && (
+        <button
+          onClick={loadMore}
+          disabled={loadingMore}
+          className="w-full bg-white border border-slate-200 text-slate-600 text-sm font-semibold py-2 rounded-xl hover:bg-slate-50 transition-colors disabled:opacity-60"
+        >
+          {loadingMore ? "Carregando..." : "Carregar mais"}
+        </button>
+      )}
     </div>
   );
 }

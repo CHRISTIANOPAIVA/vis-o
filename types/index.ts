@@ -41,6 +41,12 @@ export interface NutritionAnalysis {
   explanation: string;
 }
 
+// Resposta de POST /api/analyze-food: saved=false quando a analise deu certo
+// mas nao foi gravada no historico.
+export interface AnalyzeFoodResponse extends NutritionAnalysis {
+  saved: boolean;
+}
+
 export interface Meal {
   id: number;
   created_at: string;
@@ -53,5 +59,12 @@ export interface Meal {
   confidence: "high" | "medium" | "low";
   explanation: string;
   image_base64: string | null;
-  is_edited: 0 | 1;
+  is_edited: boolean;
+}
+
+// Pagina de GET /api/meals. nextCursor vai em `?before=` para a proxima
+// pagina; null quando nao ha mais refeicoes.
+export interface MealsPage {
+  meals: Meal[];
+  nextCursor: number | null;
 }
