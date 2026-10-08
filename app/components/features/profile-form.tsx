@@ -34,6 +34,7 @@ export function ProfileForm({ profile, onSaved }: ProfileFormProps) {
   const [goal, setGoal]     = useState<GoalType>(profile?.goal ?? "maintain");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved]   = useState(false);
+  const [error, setError]   = useState<string | null>(null);
 
   // Sync when profile loads for the first time (null → value)
   useEffect(() => {
@@ -54,17 +55,34 @@ export function ProfileForm({ profile, onSaved }: ProfileFormProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
+    setError(null);
     try {
       const res = await fetch("/api/profile", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ weight_kg: weight, height_cm: height, age, sex, goal }),
       });
-      if (!res.ok) throw new Error("Erro ao salvar");
+      if (res.status === 401) {
+        window.location.href = "/login";
+        return;
+      }
+      if (!res.ok) {
+        let msg = "Nao foi possivel salvar o perfil. Tente novamente.";
+        try {
+          const body = await res.json();
+          if (body && typeof body.error === "string" && body.error) msg = body.error;
+        } catch {
+          // corpo nao e JSON
+        }
+        setError(msg);
+        return;
+      }
       const updated: UserProfileWithTargets = await res.json();
       onSaved(updated);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
+    } catch {
+      setError("Nao foi possivel salvar o perfil. Tente novamente.");
     } finally {
       setSaving(false);
     }
@@ -128,6 +146,8 @@ export function ProfileForm({ profile, onSaved }: ProfileFormProps) {
           <TargetPill label="Gordura"  value={preview.daily_fat}      unit="g"    color="rose" />
         </div>
       </div>
+
+      {error && <p role="alert" className="text-xs text-red-500 text-center">{error}</p>}
 
       <button type="submit" disabled={saving}
         className="flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white font-semibold py-3 px-6 rounded-2xl transition-colors">
