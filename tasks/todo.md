@@ -356,3 +356,11 @@ Critérios: `grep "error.message" app/api` só em `console.error`; `tsc` exit 0.
   tailwind e deprecação do middleware).
 - `next start` + curl: `/` sem sessão → 307 `/login`; `/api/meals` sem sessão → 401;
   senha errada → 401; login → 200; com cookie, `/`, `/api/profile` e `/api/meals` → 200.
+
+## Deploy de Preview (2026-10-08)
+- Vercel: 6 variáveis em Production e Preview (hash conferido contra o `.env`);
+  `GOOGLE_*` removidas.
+- Preview `visao-lxk4d0nw9` (commit `2b68fec`): build ok. E2E via curl: sem sessão 307/401,
+  senha errada 401, login 200, `/`, profile, meals (paginado), stats e analyze-food → 200
+  com `saved: true`. Linha de teste (id 7) apagada do banco.
+- O `vercel curl` gerou um token de bypass da Deployment Protection no projeto.
