@@ -4,7 +4,7 @@
 // uma mensagem que NOMEIA as variaveis com problema, em vez do erro confuso
 // do client ("supabaseUrl is required"). A mensagem e montada so a partir dos
 // `path` dos issues: os valores sao segredos e nunca podem aparecer nela.
-// ANTHROPIC_*, AUTH_SECRET e APP_PASSWORD tem tratamento proprio (fail-closed).
+// ANTHROPIC_* tem tratamento proprio na rota de analise.
 import { z } from "zod";
 
 const serverEnvSchema = z.object({

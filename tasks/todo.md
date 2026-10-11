@@ -455,3 +455,22 @@ Critérios: [cmd] diretórios não existem; `git status` inalterado por isso.
   tornar o client lazy. Fora do escopo: prompt e `.describe()` da IA e logs seguem sem acento
   (não são visíveis); `public/manifest.json` tem BOM pré-existente.
 
+---
+
+## 2026-10-10 — Remoção do gate de senha (pedido do dono)
+
+Decisão do dono: remover o gate inteiro (AUTH_SECRET/APP_PASSWORD). O app fica público,
+inclusive na Vercel; a única proteção de custo restante é o rate limit de `/api/analyze-food`
+(10 req/min por IP, em memória por instância).
+
+- [x] Apagados `proxy.ts`, `lib/auth.ts`, `app/api/auth/route.ts`, `app/login/page.tsx`.
+- [x] Removidos os 4 redirecionamentos `401 → /login` do cliente (page, profile-form, meal-history ×2).
+- [x] Comentários de `lib/api.ts` e `lib/env.ts` sem referência ao proxy/auth.
+- [x] `AUTH_SECRET`/`APP_PASSWORD` removidas de `.env.example` e `.env`; README atualizado (+ `lib/env.ts` na árvore).
+
+### Revisão
+- `npx tsc --noEmit` exit 0 (após descartar tipos gerados antigos em `.next/dev/types`); `npm run build` exit 0,
+  sem `/login`, `/api/auth` nem Proxy.
+- `next start` + curl sem cookie: `/`, `/api/profile`, `/api/meals`, `/api/meals/stats` → 200;
+  `/login` e `/api/auth` → 404.
+- Pendente (dono): remover `AUTH_SECRET`/`APP_PASSWORD` das env vars da Vercel (inofensivas se ficarem).

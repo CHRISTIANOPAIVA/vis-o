@@ -62,10 +62,6 @@ export function ProfileForm({ profile, onSaved }: ProfileFormProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ weight_kg: weight, height_cm: height, age, sex, goal }),
       });
-      if (res.status === 401) {
-        window.location.href = "/login";
-        return;
-      }
       if (!res.ok) {
         let msg = "Não foi possível salvar o perfil. Tente novamente.";
         try {

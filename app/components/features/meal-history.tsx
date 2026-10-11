@@ -128,10 +128,6 @@ export function MealHistory({ refreshKey, targets }: MealHistoryProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id }),
       });
-      if (res.status === 401) {
-        window.location.href = "/login";
-        return;
-      }
       if (res.ok || res.status === 404) {
         setMeals((prev) => prev.filter((m) => m.id !== id));
         return;
@@ -188,10 +184,6 @@ export function MealHistory({ refreshKey, targets }: MealHistoryProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id, food_name: name, ...values }),
       });
-      if (res.status === 401) {
-        window.location.href = "/login";
-        return;
-      }
       // Excluida em outra aba/dispositivo: tira da lista em vez de mostrar erro.
       if (res.status === 404) {
         setMeals((prev) => prev.filter((m) => m.id !== id));

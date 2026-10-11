@@ -53,10 +53,6 @@ export default function Home() {
         body: JSON.stringify({ images })
       });
 
-      if (response.status === 401) {
-        window.location.href = "/login";
-        return;
-      }
       if (!response.ok) {
         const body = await response.json().catch(() => null);
         setError(body?.error ?? "Ops! Não consegui analisar essa imagem. Tente novamente.");
