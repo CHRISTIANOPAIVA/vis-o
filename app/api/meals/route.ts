@@ -36,7 +36,7 @@ export async function GET(req: Request) {
     limit:  searchParams.get("limit") ?? undefined,
     before: searchParams.get("before") ?? undefined,
   });
-  if (!parsed.success) return errorResponse(400, "Parametros de paginacao invalidos.");
+  if (!parsed.success) return errorResponse(400, "Parâmetros de paginação inválidos.");
 
   const { limit, before } = parsed.data;
 
@@ -62,18 +62,18 @@ export async function DELETE(req: Request) {
   try {
     body = await req.json();
   } catch {
-    return errorResponse(400, "JSON invalido.");
+    return errorResponse(400, "JSON inválido.");
   }
 
   const parsed = DeleteSchema.safeParse(body);
   if (!parsed.success) {
-    return errorResponse(400, "Dados invalidos.");
+    return errorResponse(400, "Dados inválidos.");
   }
 
   const { id } = parsed.data;
   const { data, error } = await db.from("meals").delete().eq("id", id).select("id");
   if (error) return dbErrorResponse("Erro ao excluir refeicao", error);
-  if (data.length === 0) return errorResponse(404, "Refeicao nao encontrada.");
+  if (data.length === 0) return errorResponse(404, "Refeição não encontrada.");
   return Response.json({ ok: true });
 }
 
@@ -82,12 +82,12 @@ export async function PATCH(req: Request) {
   try {
     body = await req.json();
   } catch {
-    return errorResponse(400, "JSON invalido.");
+    return errorResponse(400, "JSON inválido.");
   }
 
   const parsed = PatchSchema.safeParse(body);
   if (!parsed.success) {
-    return errorResponse(400, "Dados invalidos.");
+    return errorResponse(400, "Dados inválidos.");
   }
 
   const { id, food_name, calories, protein, carbs, fat, fiber } = parsed.data;
@@ -98,6 +98,6 @@ export async function PATCH(req: Request) {
     .select("id");
 
   if (error) return dbErrorResponse("Erro ao editar refeicao", error);
-  if (data.length === 0) return errorResponse(404, "Refeicao nao encontrada.");
+  if (data.length === 0) return errorResponse(404, "Refeição não encontrada.");
   return Response.json({ ok: true });
 }

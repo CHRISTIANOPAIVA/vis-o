@@ -5,7 +5,7 @@
   "display": "standalone",
   "background_color": "#f8fafc",
   "theme_color": "#22c55e",
-  "description": "PWA para captura de pratos e analise nutricional.",
+  "description": "PWA para captura de pratos e análise nutricional.",
   "icons": [
     {
       "src": "/icons/icon-192.png",

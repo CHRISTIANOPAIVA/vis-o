@@ -67,7 +67,7 @@ export function ProfileForm({ profile, onSaved }: ProfileFormProps) {
         return;
       }
       if (!res.ok) {
-        let msg = "Nao foi possivel salvar o perfil. Tente novamente.";
+        let msg = "Não foi possível salvar o perfil. Tente novamente.";
         try {
           const body = await res.json();
           if (body && typeof body.error === "string" && body.error) msg = body.error;
@@ -82,7 +82,7 @@ export function ProfileForm({ profile, onSaved }: ProfileFormProps) {
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch {
-      setError("Nao foi possivel salvar o perfil. Tente novamente.");
+      setError("Não foi possível salvar o perfil. Tente novamente.");
     } finally {
       setSaving(false);
     }

@@ -79,7 +79,7 @@ export async function POST(req: Request) {
   // do sharp, antes da chamada a Anthropic.
   const rl = rateLimit(`analyze:${clientKey(req)}`, RATE_LIMIT_MAX_REQUESTS, RATE_LIMIT_WINDOW_MS);
   if (!rl.ok) {
-    return errorResponse(429, "Muitas requisicoes. Tente novamente em instantes.", {
+    return errorResponse(429, "Muitas requisições. Tente novamente em instantes.", {
       "Retry-After": String(rl.retryAfterSeconds),
     });
   }
@@ -89,7 +89,7 @@ export async function POST(req: Request) {
     try {
       body = await req.json();
     } catch {
-      return errorResponse(400, "Imagem nao fornecida.");
+      return errorResponse(400, "Imagem não fornecida.");
     }
 
     const parsed = BodySchema.safeParse(body);
@@ -113,7 +113,7 @@ export async function POST(req: Request) {
 
     const extracted = images.map(extractBase64);
     if (extracted.some((e) => e === null)) {
-      return errorResponse(400, "Formato de imagem nao suportado. Use JPEG, PNG, WEBP ou GIF.");
+      return errorResponse(400, "Formato de imagem não suportado. Use JPEG, PNG, WEBP ou GIF.");
     }
     const imageContent = extracted.map(({ data, mediaType }) => ({
       type: "image" as const,
@@ -146,7 +146,7 @@ export async function POST(req: Request) {
     const analysis = response.parsed_output;
     if (!analysis || !hasSaneValues(analysis)) {
       console.error("Resposta da IA invalida:", response.stop_reason, JSON.stringify(response.content));
-      return errorResponse(502, "A IA nao retornou uma analise valida. Tente outra foto.");
+      return errorResponse(502, "A IA não retornou uma análise válida. Tente outra foto.");
     }
 
     // A analise ja foi paga: se salvar falhar, ela volta mesmo assim, com
@@ -158,9 +158,9 @@ export async function POST(req: Request) {
       console.error("Erro da API da Anthropic:", error.status, error.message);
       // 429 (limite da conta) e 529 (sobrecarga) passam com o tempo.
       if (error.status === 429 || error.status === 529) {
-        return errorResponse(503, "A IA esta ocupada agora. Tente novamente em instantes.");
+        return errorResponse(503, "A IA está ocupada agora. Tente novamente em instantes.");
       }
-      return errorResponse(502, "A IA nao conseguiu analisar a imagem. Tente outra foto.");
+      return errorResponse(502, "A IA não conseguiu analisar a imagem. Tente outra foto.");
     }
     console.error("Erro na analise:", error);
     return errorResponse(500, "Erro inesperado ao analisar a imagem.");

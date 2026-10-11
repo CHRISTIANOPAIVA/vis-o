@@ -17,7 +17,7 @@ type NumField = "calories" | "protein" | "carbs" | "fat" | "fiber";
 const NUM_FIELDS: NumField[] = ["calories", "protein", "carbs", "fat", "fiber"];
 type EditForm = { food_name: string } & Record<NumField, string>;
 
-const GENERIC_ERROR = "Nao foi possivel concluir a operacao. Tente novamente.";
+const GENERIC_ERROR = "Não foi possível concluir a operação. Tente novamente.";
 
 async function readError(res: Response): Promise<string> {
   try {
@@ -175,7 +175,7 @@ export function MealHistory({ refreshKey, targets }: MealHistoryProps) {
       const raw = editForm[field].trim();
       const n = raw === "" ? NaN : Number(raw);
       if (!Number.isFinite(n) || n < 0) {
-        setRowError(id, `Valor invalido em ${FIELD_LABELS[field]}.`);
+        setRowError(id, `Valor inválido em ${FIELD_LABELS[field]}.`);
         return;
       }
       values[field] = n;
@@ -234,7 +234,7 @@ export function MealHistory({ refreshKey, targets }: MealHistoryProps) {
   if (loadError && meals.length === 0) {
     return (
       <div className="p-4 bg-red-50 text-red-600 rounded-xl text-sm text-center border border-red-100">
-        Nao consegui carregar o historico. Tente novamente mais tarde.
+        Não consegui carregar o histórico. Tente novamente mais tarde.
       </div>
     );
   }
@@ -245,8 +245,8 @@ export function MealHistory({ refreshKey, targets }: MealHistoryProps) {
         <div className="p-4 rounded-2xl bg-slate-50">
           <Leaf className="w-8 h-8 text-slate-300" />
         </div>
-        <p className="text-slate-400 text-sm">Nenhuma refeicao registrada ainda.</p>
-        <p className="text-slate-300 text-xs">Tire uma foto na aba Diario para comecar!</p>
+        <p className="text-slate-400 text-sm">Nenhuma refeição registrada ainda.</p>
+        <p className="text-slate-300 text-xs">Tire uma foto na aba Diário para começar!</p>
       </div>
     );
   }
@@ -410,7 +410,7 @@ export function MealHistory({ refreshKey, targets }: MealHistoryProps) {
       </div>
 
       {loadError && (
-        <p className="text-xs text-center text-red-500">Nao consegui carregar mais refeicoes.</p>
+        <p className="text-xs text-center text-red-500">Não consegui carregar mais refeições.</p>
       )}
 
       {nextCursor !== null && (

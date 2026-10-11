@@ -1,8 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
+import { getServerEnv } from "@/lib/env";
 
-const supabaseUrl = process.env.SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-const db = createClient(supabaseUrl, supabaseKey);
-
+// Validado na importacao: se faltar variavel, falha cedo e com mensagem clara.
+const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = getServerEnv();
+const db = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 export default db;

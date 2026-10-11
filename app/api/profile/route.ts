@@ -40,12 +40,12 @@ export async function PUT(req: Request) {
   try {
     body = await req.json();
   } catch {
-    return errorResponse(400, "JSON invalido.");
+    return errorResponse(400, "JSON inválido.");
   }
 
   const parsed = ProfileSchema.safeParse(body);
   if (!parsed.success) {
-    return errorResponse(400, "Dados do perfil invalidos.");
+    return errorResponse(400, "Dados do perfil inválidos.");
   }
 
   const { weight_kg, height_cm, age, sex, goal } = parsed.data;
