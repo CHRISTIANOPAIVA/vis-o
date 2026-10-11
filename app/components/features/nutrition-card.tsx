@@ -13,7 +13,7 @@ const COLOR_STYLES: Record<string, { bg: string; text: string; bar: string }> = 
 
 const CONFIDENCE_STYLES: Record<NutritionAnalysis["confidence"], { label: string; icon: string }> = {
   high:   { label: "Alta",  icon: "text-emerald-500" },
-  medium: { label: "Media", icon: "text-amber-500" },
+  medium: { label: "Média", icon: "text-amber-500" },
   low:    { label: "Baixa", icon: "text-rose-500" },
 };
 
@@ -46,7 +46,7 @@ export function NutritionCard({ data, targets }: NutritionCardProps) {
                 className={cn("w-4 h-4", CONFIDENCE_STYLES[data.confidence].icon)}
               />
               <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">
-                Confianca {CONFIDENCE_STYLES[data.confidence].label}
+                Confiança {CONFIDENCE_STYLES[data.confidence].label}
               </span>
             </div>
           </div>
@@ -92,7 +92,7 @@ export function NutritionCard({ data, targets }: NutritionCardProps) {
           </div>
 
           {/* Macros */}
-          <MacroPill label="Proteina"  value={data.macros.protein} refValue={ref.protein} color="blue" />
+          <MacroPill label="Proteína"  value={data.macros.protein} refValue={ref.protein} color="blue" />
           <MacroPill label="Carbos"    value={data.macros.carbs}   refValue={ref.carbs}   color="amber" />
           <MacroPill label="Gordura"   value={data.macros.fat}     refValue={ref.fat}     color="rose" />
           <MacroPill label="Fibras"    value={data.macros.fiber}   refValue={ref.fiber}   color="purple" />

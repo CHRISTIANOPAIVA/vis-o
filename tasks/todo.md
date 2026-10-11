@@ -407,3 +407,70 @@ Critérios: com a API falhando, editar/excluir não alteram a lista e mostram er
   aviso de confirmação com `role="status"`. `tsc` exit 0 e build ok; este ajuste não foi testado no navegador.
 - Não feito (opcional): limpar o erro de uma refeição ao interagir com outra; cleanup do
   `setTimeout` de "Salvo" no `profile-form` (pré-existente, inofensivo).
+
+---
+
+## 2026-10-10 — Bloco A: acentos na UI, validação de env, limpeza local
+
+Origem: análise de melhorias de 2026-10-10, itens 10, 9 e 13.
+
+### [x] A1 — `ui-accents-client` (sonnet, sem dependências)
+Arquivos: `app/page.tsx`, `app/login/page.tsx`, `app/layout.tsx`, `app/components/features/*.tsx`, `public/manifest.json`
+- Acentuar todo texto visível ao usuário (JSX, placeholders, aria-label, alt, title, mensagens de erro do cliente).
+  Não mexer em comentários, identificadores, chaves, valores de enum, nomes de classe.
+Critérios: [cmd] `npx tsc --noEmit` exit 0; [sem] nenhum texto visível sem acento; nenhuma mudança fora de strings visíveis.
+
+### [x] A2 — `ui-accents-api` (haiku, sem dependências)
+Arquivos: `app/api/**/route.ts`, `lib/api.ts`, `proxy.ts`
+- Acentuar as strings de `{ error }` devolvidas ao cliente. Não mexer em logs (`console.*`), comentários, status ou formato.
+Critérios: [cmd] `npx tsc --noEmit` exit 0; [sem] só strings de resposta mudaram.
+
+### [x] A3 — `env-validation` (sonnet, sem dependências)
+Arquivos: `lib/env.ts` (novo), `lib/db.ts`
+- Validar `SUPABASE_URL` (URL) e `SUPABASE_SERVICE_ROLE_KEY` (não vazia) com zod; falhar com mensagem que nomeia as variáveis sem ecoar valores.
+Critérios: [cmd] `npx tsc --noEmit` exit 0; [cmd] `npm run build` ok com `.env` atual; [sem] variável ausente → erro claro com o nome dela, sem valor.
+
+### [ ] A4 — `local-cleanup` (eu mesmo, sem subagente)
+- Apagar `build/`, `out/`, `data/` (gitignored; o SQLite tem só 2 linhas de teste de 2026-04-06, conferido).
+Critérios: [cmd] diretórios não existem; `git status` inalterado por isso.
+
+### Ondas
+- Onda 1: A1, A2, A3 (arquivos disjuntos) + A4
+- Integração: `npx tsc --noEmit && npm run build`
+
+### Revisão
+
+| Subtarefa | Modelo | Status | Tentativas | Resumo |
+|---|---|---|---|---|
+| A1 `ui-accents-client` | sonnet | passed | 1 | Texto visível acentuado em 6 componentes/páginas + manifest; `layout.tsx` e `nutrition-charts.tsx` já estavam certos |
+| A2 `ui-accents-api` | haiku | passed | 1 | 15 mensagens `{ error }` acentuadas em 4 rotas + proxy; logs e status intocados |
+| A3 `env-validation` | sonnet | passed | 1 | `lib/env.ts` (zod) nomeia variáveis ausentes/inválidas sem ecoar valores; `lib/db.ts` sem `!` |
+| A4 `local-cleanup` | — | pendente (dono) | — | Hook do projeto bloqueia remoção recursiva; apagar `build/`, `out/`, `data/` manualmente |
+
+- Verificador independente (Code Reviewer/sonnet): A1–A3 aprovadas; testou `getServerEnv` com env vazio, URL "abc", chave vazia e valores válidos.
+- Integração: `npx tsc --noEmit` exit 0; `npm run build` exit 0, todas as rotas listadas.
+- `next-env.d.ts` alterado pelo build (`.next/dev/types` ↔ `.next/types`) foi restaurado.
+- Observações: com a validação na importação, um `next build` em CI sem os segredos do Supabase
+  falha (já falhava antes, com erro confuso). Ao fazer o Bloco C (CI), injetar as variáveis ou
+  tornar o client lazy. Fora do escopo: prompt e `.describe()` da IA e logs seguem sem acento
+  (não são visíveis); `public/manifest.json` tem BOM pré-existente.
+
+---
+
+## 2026-10-10 — Remoção do gate de senha (pedido do dono)
+
+Decisão do dono: remover o gate inteiro (AUTH_SECRET/APP_PASSWORD). O app fica público,
+inclusive na Vercel; a única proteção de custo restante é o rate limit de `/api/analyze-food`
+(10 req/min por IP, em memória por instância).
+
+- [x] Apagados `proxy.ts`, `lib/auth.ts`, `app/api/auth/route.ts`, `app/login/page.tsx`.
+- [x] Removidos os 4 redirecionamentos `401 → /login` do cliente (page, profile-form, meal-history ×2).
+- [x] Comentários de `lib/api.ts` e `lib/env.ts` sem referência ao proxy/auth.
+- [x] `AUTH_SECRET`/`APP_PASSWORD` removidas de `.env.example` e `.env`; README atualizado (+ `lib/env.ts` na árvore).
+
+### Revisão
+- `npx tsc --noEmit` exit 0 (após descartar tipos gerados antigos em `.next/dev/types`); `npm run build` exit 0,
+  sem `/login`, `/api/auth` nem Proxy.
+- `next start` + curl sem cookie: `/`, `/api/profile`, `/api/meals`, `/api/meals/stats` → 200;
+  `/login` e `/api/auth` → 404.
+- Pendente (dono): remover `AUTH_SECRET`/`APP_PASSWORD` das env vars da Vercel (inofensivas se ficarem).

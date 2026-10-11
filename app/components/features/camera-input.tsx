@@ -81,12 +81,12 @@ export function CameraInput({ onImagesSelect, isLoading }: CameraInputProps) {
 
   const startCamera = async (mode: "user" | "environment" = facingMode, allowFallback = true) => {
     if (!navigator?.mediaDevices?.getUserMedia) {
-      setError("Dispositivo nao suporta captura pela camera.");
+      setError("Dispositivo não suporta captura pela câmera.");
       inputRef.current?.click();
       return;
     }
     if (typeof window !== "undefined" && window.isSecureContext === false) {
-      setError("A camera precisa de conexao segura (https ou localhost).");
+      setError("A câmera precisa de conexão segura (https ou localhost).");
       inputRef.current?.click();
       return;
     }
@@ -109,9 +109,9 @@ export function CameraInput({ onImagesSelect, isLoading }: CameraInputProps) {
         await startCamera("user", false);
         return;
       }
-      if (domError?.name === "NotAllowedError") setError("Permissao da camera negada.");
-      else if (domError?.name === "NotFoundError") setError("Nenhuma camera encontrada.");
-      else setError("Erro ao acessar a camera.");
+      if (domError?.name === "NotAllowedError") setError("Permissão da câmera negada.");
+      else if (domError?.name === "NotFoundError") setError("Nenhuma câmera encontrada.");
+      else setError("Erro ao acessar a câmera.");
       stopStream();
     }
   };
@@ -124,7 +124,7 @@ export function CameraInput({ onImagesSelect, isLoading }: CameraInputProps) {
   const capturePhoto = () => {
     const video = videoRef.current;
     if (!video || !videoReady) {
-      setError("A camera ainda esta iniciando. Aguarde...");
+      setError("A câmera ainda está iniciando. Aguarde...");
       return;
     }
     if (capturedFiles.length >= MAX_PHOTOS) return;
@@ -197,7 +197,7 @@ export function CameraInput({ onImagesSelect, isLoading }: CameraInputProps) {
           <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
           {!videoReady && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/50 text-white text-sm">
-              Iniciando camera...
+              Iniciando câmera...
             </div>
           )}
           <div className="absolute inset-0 flex items-end justify-between p-4 gap-3">
@@ -255,7 +255,7 @@ export function CameraInput({ onImagesSelect, isLoading }: CameraInputProps) {
               <Camera className="w-8 h-8" strokeWidth={1.5} />
             </div>
             <div className="text-center px-4">
-              <p className="font-semibold text-slate-700">Usar camera</p>
+              <p className="font-semibold text-slate-700">Usar câmera</p>
               <p className="text-sm text-slate-400 mt-1">Clique para abrir</p>
             </div>
           </button>

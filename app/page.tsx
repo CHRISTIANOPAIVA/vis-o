@@ -53,23 +53,19 @@ export default function Home() {
         body: JSON.stringify({ images })
       });
 
-      if (response.status === 401) {
-        window.location.href = "/login";
-        return;
-      }
       if (!response.ok) {
         const body = await response.json().catch(() => null);
-        setError(body?.error ?? "Ops! Nao consegui analisar essa imagem. Tente novamente.");
+        setError(body?.error ?? "Ops! Não consegui analisar essa imagem. Tente novamente.");
         return;
       }
 
       const { saved, ...result }: AnalyzeFoodResponse = await response.json();
       setData(result);
       if (saved) setHistoryKey((k) => k + 1);
-      else setWarning("A analise nao foi salva no historico. Tente novamente mais tarde.");
+      else setWarning("A análise não foi salva no histórico. Tente novamente mais tarde.");
     } catch (err) {
       console.error(err);
-      setError("Ops! Nao consegui analisar essa imagem. Verifique sua conexao e tente novamente.");
+      setError("Ops! Não consegui analisar essa imagem. Verifique sua conexão e tente novamente.");
     } finally {
       setIsLoading(false);
     }
@@ -83,13 +79,13 @@ export default function Home() {
           active={tab === "diary"}
           onClick={() => setTab("diary")}
           icon={<Camera className="w-3.5 h-3.5" />}
-          label="Diario"
+          label="Diário"
         />
         <TabButton
           active={tab === "history"}
           onClick={() => setTab("history")}
           icon={<BookOpen className="w-3.5 h-3.5" />}
-          label="Historico"
+          label="Histórico"
         />
         <TabButton
           active={tab === "profile"}
@@ -103,7 +99,7 @@ export default function Home() {
       {tab === "diary" && (
         <div className="flex flex-col gap-6">
           <section className="space-y-1">
-            <h1 className="text-2xl font-bold text-gray-900">Diario Alimentar</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Diário Alimentar</h1>
             <p className="text-gray-500 text-sm">
               Tire uma foto para registrar suas calorias automaticamente.
             </p>
@@ -135,13 +131,13 @@ export default function Home() {
           {data && (
             <section>
               <div className="flex items-center justify-between mb-4">
-                <h2 className="font-semibold text-gray-900">Resultado da Analise</h2>
+                <h2 className="font-semibold text-gray-900">Resultado da Análise</h2>
                 <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">
-                  Confianca:{" "}
+                  Confiança:{" "}
                   {data.confidence === "high"
                     ? "Alta"
                     : data.confidence === "medium"
-                    ? "Media"
+                    ? "Média"
                     : "Baixa"}
                 </span>
               </div>
@@ -166,8 +162,8 @@ export default function Home() {
       {tab === "history" && (
         <div className="flex flex-col gap-4">
           <section className="space-y-1">
-            <h1 className="text-2xl font-bold text-gray-900">Historico</h1>
-            <p className="text-gray-500 text-sm">Todas as refeicoes registradas.</p>
+            <h1 className="text-2xl font-bold text-gray-900">Histórico</h1>
+            <p className="text-gray-500 text-sm">Todas as refeições registradas.</p>
           </section>
           <NutritionCharts refreshKey={historyKey} targets={profile} />
           <MealHistory refreshKey={historyKey} targets={profile} />

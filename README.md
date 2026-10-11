@@ -1,6 +1,6 @@
 # NutriVision
 
-Aplicação web mobile-first que usa IA (Claude, da Anthropic) para analisar fotos de refeições e estimar calorias e macronutrientes. Suporta múltiplas fotos por refeição, metas nutricionais personalizadas, histórico com gráficos e edição manual dos resultados. É um app pessoal de usuário único, protegido por senha.
+Aplicação web mobile-first que usa IA (Claude, da Anthropic) para analisar fotos de refeições e estimar calorias e macronutrientes. Suporta múltiplas fotos por refeição, metas nutricionais personalizadas, histórico com gráficos e edição manual dos resultados. É um app pessoal de usuário único, sem autenticação: qualquer pessoa com a URL tem acesso.
 
 ## Funcionalidades
 
@@ -31,7 +31,7 @@ Aplique o schema no Supabase: cole o conteúdo de `supabase/schema.sql` no SQL E
 npm run dev
 ```
 
-Acesse [http://localhost:3000](http://localhost:3000) e entre com a senha definida em `APP_PASSWORD`.
+Acesse [http://localhost:3000](http://localhost:3000).
 
 A câmera só funciona em contexto seguro — `localhost` já é aceito. Em rede local (ex: `192.168.x.x`), configure HTTPS ou use a opção de upload de arquivo.
 
@@ -44,7 +44,7 @@ npm start
 
 ## Deploy
 
-O app é publicado na Vercel. Todas as variáveis abaixo precisam estar configuradas no projeto da Vercel (Production e Preview); sem `AUTH_SECRET` e `APP_PASSWORD` o app nega acesso a tudo.
+O app é publicado na Vercel. Todas as variáveis abaixo precisam estar configuradas no projeto da Vercel (Production e Preview). O app não tem login: a única proteção de custo é o rate limit de `/api/analyze-food`.
 
 ## Variáveis de ambiente
 
@@ -54,8 +54,6 @@ O app é publicado na Vercel. Todas as variáveis abaixo precisam estar configur
 | `ANTHROPIC_MODEL` | Modelo usado na análise (ex.: `claude-haiku-4-5`) |
 | `SUPABASE_URL` | URL do projeto Supabase |
 | `SUPABASE_SERVICE_ROLE_KEY` | Chave service-role do Supabase (só no servidor) |
-| `AUTH_SECRET` | Segredo para assinar o cookie de sessão (`openssl rand -base64 32`) |
-| `APP_PASSWORD` | Senha de acesso ao app |
 
 ## Estrutura do projeto
 
@@ -64,10 +62,8 @@ visão/
 ├── app/
 │   ├── page.tsx                        # Página principal (abas: Diário, Histórico, Perfil)
 │   ├── layout.tsx                      # Layout raiz com cabeçalho
-│   ├── login/page.tsx                  # Tela de senha
 │   ├── api/
 │   │   ├── analyze-food/route.ts       # POST — análise de imagem via Claude
-│   │   ├── auth/route.ts               # POST login / DELETE logout
 │   │   ├── meals/
 │   │   │   ├── route.ts                # GET / DELETE / PATCH — histórico de refeições
 │   │   │   └── stats/route.ts          # GET — agregação diária para gráficos
@@ -75,14 +71,13 @@ visão/
 │   └── components/features/            # Câmera, card de resultado, histórico, gráficos, perfil
 ├── lib/
 │   ├── api.ts                          # Respostas de erro padronizadas
-│   ├── auth.ts                         # Token de sessão (HMAC via Web Crypto)
 │   ├── date.ts                         # Parse de timestamps do Postgres
 │   ├── db.ts                           # Cliente Supabase
+│   ├── env.ts                          # Validação das variáveis do Supabase
 │   ├── image.ts                        # Redimensionamento de fotos no navegador
 │   ├── nutrition.ts                    # Cálculo de metas (Mifflin-St Jeor)
 │   ├── rate-limit.ts                   # Rate limit em memória
 │   └── utils.ts                        # Helper cn() para classes Tailwind
-├── proxy.ts                            # Gate de autenticação (todas as rotas)
 ├── supabase/schema.sql                 # Schema do banco
 └── types/index.ts                      # Interfaces TypeScript
 ```
@@ -111,7 +106,7 @@ Postgres no Supabase, com o schema versionado em [`supabase/schema.sql`](supabas
 
 ## API interna
 
-Todas as rotas, exceto `/api/auth`, exigem sessão (cookie emitido no login) e respondem `401` sem ela. Erros vêm no formato `{ "error": "..." }`.
+As rotas não exigem autenticação. Erros vêm no formato `{ "error": "..." }`.
 
 ### `POST /api/analyze-food`
 Analisa de 1 a 5 imagens e salva a refeição. Limitado a 10 requisições por minuto por IP.
