@@ -18,6 +18,39 @@ const NutritionCharts = dynamic(
 
 type Tab = "diary" | "history" | "profile";
 
+// Codigo de acesso (APP_CODE no servidor), pedido uma vez por aparelho.
+const APP_CODE_KEY = "app-code";
+
+function readAppCode(): string {
+  try {
+    return localStorage.getItem(APP_CODE_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function saveAppCode(code: string) {
+  try {
+    localStorage.setItem(APP_CODE_KEY, code);
+  } catch {}
+}
+
+async function postAnalyzeFood(images: string[], askCode = true): Promise<Response> {
+  const response = await fetch("/api/analyze-food", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-app-code": readAppCode() },
+    body: JSON.stringify({ images })
+  });
+  if (response.status === 401 && askCode) {
+    const code = window.prompt("Código de acesso do app:")?.trim();
+    if (code) {
+      saveAppCode(code);
+      return postAnalyzeFood(images, false);
+    }
+  }
+  return response;
+}
+
 export default function Home() {
   const [tab, setTab] = useState<Tab>("diary");
   const [isLoading, setIsLoading] = useState(false);
@@ -47,11 +80,7 @@ export default function Home() {
     try {
       const images = await Promise.all(files.map(prepareImageForUpload));
 
-      const response = await fetch("/api/analyze-food", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ images })
-      });
+      const response = await postAnalyzeFood(images);
 
       if (!response.ok) {
         const body = await response.json().catch(() => null);

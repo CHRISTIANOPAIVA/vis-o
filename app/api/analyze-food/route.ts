@@ -5,6 +5,7 @@ import sharp from "sharp";
 import db from "@/lib/db";
 import { rateLimit, clientKey } from "@/lib/rate-limit";
 import { errorResponse } from "@/lib/api";
+import { hasAppCode } from "@/lib/app-code";
 
 export const maxDuration = 60;
 
@@ -82,6 +83,11 @@ export async function POST(req: Request) {
     return errorResponse(429, "Muitas requisições. Tente novamente em instantes.", {
       "Retry-After": String(rl.retryAfterSeconds),
     });
+  }
+
+  // Depois do rate limit, para que ele tambem segure tentativas de adivinhar o codigo.
+  if (!hasAppCode(req)) {
+    return errorResponse(401, "Código de acesso incorreto.");
   }
 
   try {

@@ -44,13 +44,14 @@ npm start
 
 ## Deploy
 
-O app é publicado na Vercel. Todas as variáveis abaixo precisam estar configuradas no projeto da Vercel (Production e Preview). O app não tem login: a única proteção de custo é o rate limit de `/api/analyze-food`.
+O app é publicado na Vercel. Todas as variáveis abaixo precisam estar configuradas no projeto da Vercel (Production e Preview). O app não tem login. Para proteger os créditos da Anthropic, defina `APP_CODE`: o app pede esse código uma vez em cada aparelho antes da primeira análise. Sem ele, qualquer pessoa com a URL pode usar `/api/analyze-food`, limitada só pelo rate limit.
 
 ## Variáveis de ambiente
 
 | Variável | Descrição |
 |---|---|
 | `ANTHROPIC_API_KEY` | Chave da API da Anthropic |
+| `APP_CODE` | Código de acesso para a análise de fotos (recomendado; vazio desliga) |
 | `ANTHROPIC_MODEL` | Modelo usado na análise (ex.: `claude-haiku-4-5`) |
 | `SUPABASE_URL` | URL do projeto Supabase |
 | `SUPABASE_SERVICE_ROLE_KEY` | Chave service-role do Supabase (só no servidor) |
@@ -71,6 +72,7 @@ visão/
 │   └── components/features/            # Câmera, card de resultado, histórico, gráficos, perfil
 ├── lib/
 │   ├── api.ts                          # Respostas de erro padronizadas
+│   ├── app-code.ts                     # Checagem do código de acesso (APP_CODE)
 │   ├── date.ts                         # Parse de timestamps do Postgres
 │   ├── db.ts                           # Cliente Supabase
 │   ├── env.ts                          # Validação das variáveis do Supabase
@@ -106,10 +108,10 @@ Postgres no Supabase, com o schema versionado em [`supabase/schema.sql`](supabas
 
 ## API interna
 
-As rotas não exigem autenticação. Erros vêm no formato `{ "error": "..." }`.
+As rotas não exigem autenticação, exceto `/api/analyze-food` quando `APP_CODE` está definido. Erros vêm no formato `{ "error": "..." }`.
 
 ### `POST /api/analyze-food`
-Analisa de 1 a 5 imagens e salva a refeição. Limitado a 10 requisições por minuto por IP.
+Analisa de 1 a 5 imagens e salva a refeição. Limitado a 10 requisições por minuto por IP. Com `APP_CODE` definido, exige o header `x-app-code` com o mesmo valor e responde `401` sem ele.
 
 ```json
 // Request
